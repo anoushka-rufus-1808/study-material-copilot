@@ -230,7 +230,7 @@ export default function App() {
     setAudioUrl(null);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: "AIzaSyBJYSFKEwzviPu_GuVuQBAmMz1FBPIekqA" });
+      const ai = new GoogleGenAI({ apiKey: "AIzaSyB9rp3IQv8PIgJvDxaRgiv7AISDZ5RJM5Y" });
       const base64 = await fileToBase64(file);
       
       console.log("Starting Quiz Generation...");
@@ -291,7 +291,7 @@ export default function App() {
     setAudioUrl(null);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: "AIzaSyBJYSFKEwzviPu_GuVuQBAmMz1FBPIekqA" });
+      const ai = new GoogleGenAI({ apiKey: "AIzaSyB9rp3IQv8PIgJvDxaRgiv7AISDZ5RJM5Y" });
       const base64 = await fileToBase64(file);
       
       console.log("Starting Podcast Generation...");
