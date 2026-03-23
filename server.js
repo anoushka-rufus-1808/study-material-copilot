@@ -7,41 +7,23 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const app = express();
-// Increased limit for larger PDFs
 app.use(express.json({ limit: '100mb' }));
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 app.use(express.static(path.join(__dirname, 'dist')));
 
 app.post('/api/ai', async (req, res) => {
-  console.log("====================================");
-  console.log("1. 📥 Received request at /api/ai");
-  
   try {
     const { prompt, fileData, type } = req.body;
-    console.log(`2. 📦 Payload size: ${fileData ? fileData.length : 0} bytes. Type: ${type || 'Quiz'}`);
-
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.log("❌ ERROR: API Key is missing.");
-      return res.status(500).json({ error: "Server Configuration Error: API Key missing." });
-    }
 
-    console.log("3. 🧠 Initializing Gemini Models...");
+    if (!apiKey) return res.status(500).json({ error: "API Key missing." });
+
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // Use stable 2.0-flash for standard text/reading
-    const textModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-    
-    // THE FIX: Use stable 2.0-flash but FORCE the v1alpha endpoint to unlock Audio
-    const audioModel = genAI.getGenerativeModel(
-      { model: "gemini-2.0-flash" },
-      { apiVersion: "v1alpha" }
-    );
-
-    // Handle Podcast Audio Generation
+    // Original Vision: Audio uses 2.0, Text uses 1.5
     if (type === 'audio') {
-      console.log("4. 🎙️ Generating Podcast Audio using v1alpha endpoint...");
+      const audioModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }, { apiVersion: "v1alpha" });
       const result = await audioModel.generateContent({
         contents: [{ parts: [{ text: prompt.slice(0, 10000) }] }],
         generationConfig: {
@@ -49,26 +31,21 @@ app.post('/api/ai', async (req, res) => {
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } } }
         }
       });
-      const audioData = result.response.candidates[0].content.parts[0].inlineData.data;
-      console.log("5. ✅ Audio generated successfully!");
-      return res.json({ audioData });
+      return res.json({ audioData: result.response.candidates[0].content.parts[0].inlineData.data });
     }
 
-    // Handle Quiz / Text Generation
-    console.log("4. 📤 Sending PDF and Prompt to Google...");
+    const textModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     const contents = [
       { inlineData: { data: fileData, mimeType: "application/pdf" } },
       { text: prompt }
     ];
-
-    const result = await textModel.generateContent(contents);
-    console.log("5. ✅ Google responded successfully!");
     
+    const result = await textModel.generateContent(contents);
     res.json({ text: result.response.text() });
 
   } catch (error) {
-    console.error("❌ BACKEND CRASH DETAILS:", error);
-    res.status(500).json({ error: error.message || "Unknown Server Error" });
+    console.error("Backend Error:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -77,4 +54,4 @@ app.get('*', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server successfully live on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server live on port ${PORT}`));
