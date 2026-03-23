@@ -26,7 +26,9 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [noteText, setNoteText] = useState('');
 
+  // Pre-load voices so they are ready when the user clicks play
   useEffect(() => {
+    window.speechSynthesis.getVoices();
     const saved = localStorage.getItem('studyHistory');
     if (saved) setHistory(JSON.parse(saved));
     return () => { window.speechSynthesis.cancel(); };
@@ -61,7 +63,7 @@ export default function App() {
     });
   };
 
-  // --- AUDIO CONTROLS WITH MULTILINGUAL FIX ---
+  // --- AUDIO CONTROLS WITH HARDCODED VOICE SELECTION ---
   const toggleAudio = () => {
     if (window.speechSynthesis.speaking) {
       if (window.speechSynthesis.paused) {
@@ -76,10 +78,20 @@ export default function App() {
       const cleanScript = podcastScript.replace(/[*#_]/g, '');
       const utterance = new SpeechSynthesisUtterance(cleanScript);
       
-      // Force the browser to use the correct accent/language engine
-      utterance.lang = language === 'Hindi' ? 'hi-IN' : 'en-US';
+      const voices = window.speechSynthesis.getVoices();
       
-      utterance.rate = 0.95; 
+      if (language === 'Hindi') {
+        utterance.lang = 'hi-IN';
+        // Actively hunt for a Hindi voice installed in the browser
+        const hindiVoice = voices.find(v => v.lang.includes('hi') || v.lang === 'hi-IN' || v.name.includes('Hindi'));
+        if (hindiVoice) {
+          utterance.voice = hindiVoice;
+        }
+      } else {
+        utterance.lang = 'en-US';
+      }
+      
+      utterance.rate = 0.90; // Slightly slower for better Hindi pronunciation
       utterance.onend = () => setIsPlaying(false);
       utterance.onerror = () => setIsPlaying(false);
       window.speechSynthesis.speak(utterance);
@@ -163,8 +175,6 @@ export default function App() {
           </div>
           {status && <div className="mt-4 text-center text-blue-600 font-bold">{status}</div>}
         </div>
-
-        {/* --- MOVED CONTENT ABOVE DASHBOARD --- */}
 
         {/* QUIZ SECTION */}
         {quizData && (
