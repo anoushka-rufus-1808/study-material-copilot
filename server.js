@@ -29,7 +29,9 @@ app.post('/api/ai', async (req, res) => {
 
     console.log("3. 🧠 Initializing Gemini Model...");
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    
+    // ---> THE FIX: Explicitly using -001 to bypass alias 404s <---
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-001" });
 
     // Handle Podcast Audio Generation
     if (type === 'audio') {
@@ -47,7 +49,7 @@ app.post('/api/ai', async (req, res) => {
     }
 
     // Handle Quiz / Text Generation
-    console.log("4. 📤 Sending PDF and Prompt to Google (This may take a moment)...");
+    console.log("4. 📤 Sending PDF and Prompt to Google...");
     const contents = [
       { inlineData: { data: fileData, mimeType: "application/pdf" } },
       { text: prompt }
