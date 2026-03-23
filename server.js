@@ -21,7 +21,7 @@ app.post('/api/ai', async (req, res) => {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     // Using 1.5-flash: The most reliable free-tier model that won't throw a limit: 0 error
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const contents = [
       { inlineData: { data: fileData, mimeType: "application/pdf" } },
