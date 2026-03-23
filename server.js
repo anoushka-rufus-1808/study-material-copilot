@@ -1,5 +1,5 @@
 import express from 'express';
-import { GoogleGenerativeAI } from "@google/generative-ai"; // Updated naming
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
@@ -23,7 +23,7 @@ app.post('/api/ai', async (req, res) => {
 
     // Updated constructor name
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }, { apiVersion: 'v1' });
 
     const contents = [
       {
