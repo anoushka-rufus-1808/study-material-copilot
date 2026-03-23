@@ -30,8 +30,8 @@ app.post('/api/ai', async (req, res) => {
     console.log("3. 🧠 Initializing Gemini Model...");
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // ---> THE FIX: Explicitly using -001 to bypass alias 404s <---
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-001" });
+  
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     // Handle Podcast Audio Generation
     if (type === 'audio') {
