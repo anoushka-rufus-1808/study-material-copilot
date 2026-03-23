@@ -30,13 +30,18 @@ app.post('/api/ai', async (req, res) => {
     console.log("3. 🧠 Initializing Gemini Models...");
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // Use 2.5 for text/reading, use 2.0-exp specifically for Audio generation
-    const textModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const audioModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+    // Use stable 2.0-flash for standard text/reading
+    const textModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    
+    // THE FIX: Use stable 2.0-flash but FORCE the v1alpha endpoint to unlock Audio
+    const audioModel = genAI.getGenerativeModel(
+      { model: "gemini-2.0-flash" },
+      { apiVersion: "v1alpha" }
+    );
 
     // Handle Podcast Audio Generation
     if (type === 'audio') {
-      console.log("4. 🎙️ Generating Podcast Audio using gemini-2.0-flash-exp...");
+      console.log("4. 🎙️ Generating Podcast Audio using v1alpha endpoint...");
       const result = await audioModel.generateContent({
         contents: [{ parts: [{ text: prompt.slice(0, 10000) }] }],
         generationConfig: {
