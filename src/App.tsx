@@ -57,8 +57,8 @@ interface HistoryItem {
 }
 
 // --- Constants ---
-const TEXT_ENGINE = "gemini-1.5-flash";
-const AUDIO_ENGINE = "gemini-1.5-flash";
+const TEXT_ENGINE = "gemini-1.5-flash-latest";
+const AUDIO_ENGINE = "gemini-1.5-flash-latest";
 
 export default function App() {
   // --- State ---
