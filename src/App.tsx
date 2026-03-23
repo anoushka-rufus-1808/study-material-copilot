@@ -25,13 +25,27 @@ export default function App() {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [noteText, setNoteText] = useState('');
+  
+  // --- NEW: State to store loaded voices ---
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
 
-  // Pre-load voices so they are ready when the user clicks play
   useEffect(() => {
-    window.speechSynthesis.getVoices();
+    // Force the browser to load voices and save them to state
+    const updateVoices = () => {
+      setAvailableVoices(window.speechSynthesis.getVoices());
+    };
+    
+    updateVoices();
+    // Listen for the browser to finish loading the voice packages
+    window.speechSynthesis.onvoiceschanged = updateVoices;
+
     const saved = localStorage.getItem('studyHistory');
     if (saved) setHistory(JSON.parse(saved));
-    return () => { window.speechSynthesis.cancel(); };
+    
+    return () => { 
+      window.speechSynthesis.cancel(); 
+      window.speechSynthesis.onvoiceschanged = null;
+    };
   }, []);
 
   useEffect(() => {
@@ -63,7 +77,7 @@ export default function App() {
     });
   };
 
-  // --- AUDIO CONTROLS WITH HARDCODED VOICE SELECTION ---
+  // --- AUDIO CONTROLS WITH ASYNC VOICE LOADING ---
   const toggleAudio = () => {
     if (window.speechSynthesis.speaking) {
       if (window.speechSynthesis.paused) {
@@ -78,20 +92,20 @@ export default function App() {
       const cleanScript = podcastScript.replace(/[*#_]/g, '');
       const utterance = new SpeechSynthesisUtterance(cleanScript);
       
-      const voices = window.speechSynthesis.getVoices();
-      
       if (language === 'Hindi') {
         utterance.lang = 'hi-IN';
-        // Actively hunt for a Hindi voice installed in the browser
-        const hindiVoice = voices.find(v => v.lang.includes('hi') || v.lang === 'hi-IN' || v.name.includes('Hindi'));
-        if (hindiVoice) {
-          utterance.voice = hindiVoice;
-        }
+        // Now it searches the safely loaded state array instead of an empty browser object
+        const hindiVoice = availableVoices.find(v => 
+          v.lang.includes('hi') || v.lang === 'hi-IN' || v.name.includes('Hindi') || v.name.includes('India')
+        );
+        if (hindiVoice) utterance.voice = hindiVoice;
       } else {
         utterance.lang = 'en-US';
+        const engVoice = availableVoices.find(v => v.lang.includes('en-US') || v.lang.includes('en-GB'));
+        if (engVoice) utterance.voice = engVoice;
       }
       
-      utterance.rate = 0.90; // Slightly slower for better Hindi pronunciation
+      utterance.rate = 0.90; 
       utterance.onend = () => setIsPlaying(false);
       utterance.onerror = () => setIsPlaying(false);
       window.speechSynthesis.speak(utterance);
