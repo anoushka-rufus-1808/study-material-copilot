@@ -14,34 +14,21 @@ app.use(express.static(path.join(__dirname, 'dist')));
 
 app.post('/api/ai', async (req, res) => {
   try {
-    const { prompt, fileData, type } = req.body;
+    const { prompt, fileData } = req.body;
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) return res.status(500).json({ error: "API Key missing." });
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    
-    // Audio Generation
-    if (type === 'audio') {
-      const audioModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }, { apiVersion: "v1alpha" });
-      const result = await audioModel.generateContent({
-        contents: [{ parts: [{ text: prompt.slice(0, 10000) }] }],
-        generationConfig: {
-          responseModalities: ["AUDIO"],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } } }
-        }
-      });
-      return res.json({ audioData: result.response.candidates[0].content.parts[0].inlineData.data });
-    }
+    // Using 1.5-flash: The most reliable free-tier model that won't throw a limit: 0 error
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    // Text Generation (Quiz & Script) - FIX: Pointed to the active 2.0 model
-    const textModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
     const contents = [
       { inlineData: { data: fileData, mimeType: "application/pdf" } },
       { text: prompt }
     ];
-    
-    const result = await textModel.generateContent(contents);
+
+    const result = await model.generateContent(contents);
     res.json({ text: result.response.text() });
 
   } catch (error) {
