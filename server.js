@@ -27,16 +27,17 @@ app.post('/api/ai', async (req, res) => {
       return res.status(500).json({ error: "Server Configuration Error: API Key missing." });
     }
 
-    console.log("3. 🧠 Initializing Gemini Model...");
+    console.log("3. 🧠 Initializing Gemini Models...");
     const genAI = new GoogleGenerativeAI(apiKey);
     
-  
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    // Use 2.5 for text/reading, use 2.0 specifically for Audio generation
+    const textModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const audioModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
     // Handle Podcast Audio Generation
     if (type === 'audio') {
-      console.log("4. 🎙️ Generating Podcast Audio...");
-      const result = await model.generateContent({
+      console.log("4. 🎙️ Generating Podcast Audio using gemini-2.0-flash...");
+      const result = await audioModel.generateContent({
         contents: [{ parts: [{ text: prompt.slice(0, 10000) }] }],
         generationConfig: {
           responseModalities: ["AUDIO"],
@@ -55,7 +56,7 @@ app.post('/api/ai', async (req, res) => {
       { text: prompt }
     ];
 
-    const result = await model.generateContent(contents);
+    const result = await textModel.generateContent(contents);
     console.log("5. ✅ Google responded successfully!");
     
     res.json({ text: result.response.text() });
