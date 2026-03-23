@@ -61,13 +61,21 @@ export default function App() {
     });
   };
 
+  // --- UPDATED AUDIO CONTROLS (Pause/Play & Clean Text) ---
   const toggleAudio = () => {
-    if (isPlaying) {
-      window.speechSynthesis.cancel();
-      setIsPlaying(false);
+    if (window.speechSynthesis.speaking) {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+        setIsPlaying(true);
+      } else {
+        window.speechSynthesis.pause();
+        setIsPlaying(false);
+      }
     } else {
       if (!podcastScript) return;
-      const utterance = new SpeechSynthesisUtterance(podcastScript);
+      // Strip markdown asterisks and hashtags so the bot doesn't read them
+      const cleanScript = podcastScript.replace(/[*#_]/g, '');
+      const utterance = new SpeechSynthesisUtterance(cleanScript);
       utterance.rate = 0.95; 
       utterance.onend = () => setIsPlaying(false);
       utterance.onerror = () => setIsPlaying(false);
@@ -200,8 +208,8 @@ export default function App() {
               <div className="text-sm font-bold text-slate-700 flex items-center gap-2">
                 <Volume2 size={18} className="text-blue-500" /> Web Speech AI
               </div>
-              <button onClick={toggleAudio} className={cn("px-8 py-3 rounded-xl font-bold text-white transition-all w-full sm:w-auto", isPlaying ? "bg-red-500 hover:bg-red-600 shadow-inner" : "bg-emerald-500 hover:bg-emerald-600 shadow-md")}>
-                {isPlaying ? "⏹ Stop Listening" : "▶️ Play Podcast"}
+              <button onClick={toggleAudio} className={cn("px-8 py-3 rounded-xl font-bold text-white transition-all w-full sm:w-auto", isPlaying ? "bg-amber-500 hover:bg-amber-600 shadow-inner" : "bg-emerald-500 hover:bg-emerald-600 shadow-md")}>
+                {isPlaying ? "⏸ Pause Audio" : "▶️ Play Audio"}
               </button>
             </div>
             
