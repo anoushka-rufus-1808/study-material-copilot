@@ -56,7 +56,7 @@ interface HistoryItem {
   data: any;
 }
 
-// --- Constants ---
+// --- Constants (STABLE MODELS) ---
 const TEXT_ENGINE = "gemini-1.5-flash";
 const AUDIO_ENGINE = "gemini-1.5-flash";
 
@@ -174,27 +174,29 @@ export default function App() {
     setStep(1);
 
     try {
+      // FIX: Use the Environment Variable from Render
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error("API Key missing");
+      if (!apiKey) throw new Error("API Key not found. Check Render environment variables.");
 
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI(apiKey);
       const base64 = await fileToBase64(file);
       
       setStep(2);
-      const response = await ai.models.generateContent({
-        model: TEXT_ENGINE,
+      const model = ai.getGenerativeModel({ model: TEXT_ENGINE });
+      const response = await model.generateContent({
         contents: [
           { inlineData: { data: base64, mimeType: "application/pdf" } },
           { text: `Generate a JSON quiz from this PDF in ${language}: {"quiz_title": "string", "questions": [{"question_text": "string", "options": {"A": "string", "B": "string", "C": "string", "D": "string"}, "correct_answer": "A|B|C|D", "explanation": "string"}]}. Return EXACTLY ${numQuestions} questions.` }
         ],
-        config: { responseMimeType: "application/json" }
+        generationConfig: { responseMimeType: "application/json" }
       });
 
-      const data = JSON.parse(response.text || '{}');
+      const data = JSON.parse(response.response.text() || '{}');
       setQuizData(data);
       saveHistory({ id: Date.now().toString(), filename: file.name, type: 'quiz', date: new Date().toLocaleString(), data });
       setStatus('✅ Quiz Ready');
     } catch (error: any) {
+      console.error(error);
       setStatus(`❌ Error: ${error.message}`);
     } finally {
       setIsQuizLoading(false);
@@ -209,29 +211,28 @@ export default function App() {
     setStep(1);
 
     try {
+      // FIX: Use the Environment Variable from Render
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error("API Key missing");
+      if (!apiKey) throw new Error("API Key not found. Check Render environment variables.");
 
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI(apiKey);
       const base64 = await fileToBase64(file);
       
       setStep(2);
-      const scriptResponse = await ai.models.generateContent({
-        model: TEXT_ENGINE,
-        contents: [
-          { inlineData: { data: base64, mimeType: "application/pdf" } },
-          { text: `Summarize this PDF as a conversational script in ${language}. Target word count: ${podcastDuration * 120}. ONLY return spoken text.` }
-        ]
-      });
+      const model = ai.getGenerativeModel({ model: TEXT_ENGINE });
+      const scriptResponse = await model.generateContent([
+        { inlineData: { data: base64, mimeType: "application/pdf" } },
+        { text: `Summarize this PDF as a conversational script in ${language}. Target word count: ${podcastDuration * 120}. ONLY return spoken text.` }
+      ]);
 
-      const script = scriptResponse.text?.trim() || '';
+      const script = scriptResponse.response.text()?.trim() || '';
       setPodcastScript(script);
 
       setStep(3);
-      const ttsResponse = await ai.models.generateContent({
-        model: AUDIO_ENGINE,
+      const ttsModel = ai.getGenerativeModel({ model: AUDIO_ENGINE });
+      const ttsResponse = await ttsModel.generateContent({
         contents: [{ parts: [{ text: script.slice(0, 10000) }] }],
-        config: {
+        generationConfig: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: language === 'Hindi' ? 'Kore' : 'Zephyr' } }
@@ -239,7 +240,7 @@ export default function App() {
         }
       });
 
-      const audioData = ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      const audioData = ttsResponse.response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (audioData) {
         const playableUrl = createPlayableAudioUrl(audioData);
         setAudioUrl(playableUrl);
@@ -247,6 +248,7 @@ export default function App() {
         setStatus('✅ Podcast Ready');
       }
     } catch (error: any) {
+      console.error(error);
       setStatus(`❌ Error: ${error.message}`);
     } finally {
       setIsPodcastLoading(false);
@@ -312,7 +314,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* RESTORED SLIDERS */}
           <div className="grid grid-cols-2 gap-6 mb-8">
             <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-700">Questions</label>
