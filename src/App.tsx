@@ -66,7 +66,9 @@ export default function App() {
 
   const handleGenerateQuiz = async () => {
     if (!file) return;
-    setIsQuizLoading(true); setStatus('Analyzing PDF...');
+    setIsQuizLoading(true);
+    setStatus('Analyzing PDF and writing quiz...');
+    
     try {
       const base64 = await fileToBase64(file);
       const res = await fetch('/api/ai', {
@@ -74,12 +76,39 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           fileData: base64, 
-          prompt: `Generate a JSON quiz in ${language}: {"quiz_title": "string", "questions": [{"question_text": "string", "options": {"A": "string", "B": "string", "C": "string", "D": "string"}, "correct_answer": "A|B|C|D", "explanation": "string"}]}. Generate ${numQuestions} questions.` 
+          prompt: `Return ONLY a JSON quiz for this PDF in ${language}: {"quiz_title": "string", "questions": [{"question_text": "string", "options": {"A": "string", "B": "string", "C": "string", "D": "string"}, "correct_answer": "A|B|C|D", "explanation": "string"}]}. Generate exactly ${numQuestions} questions.` 
         })
       });
+
       const data = await res.json();
-      setQuizData(JSON.parse(data.text)); setQuizSubmitted(false); setStatus('✅ Quiz Ready');
-    } catch (e: any) { setStatus(`❌ Error: ${e.message}`); } finally { setIsQuizLoading(false); }
+
+      // SAFETY CHECK: If the server returned an error, don't try to parse it as a quiz
+      if (!res.ok) {
+        throw new Error(data.error || "The AI server encountered an issue.");
+      }
+
+      if (!data.text) {
+        throw new Error("The AI returned an empty response. Please try again.");
+      }
+
+      // Try to parse the AI's response text into a JSON object
+      try {
+        const cleanedText = data.text.replace(/```json|```/g, "").trim();
+        const parsedData = JSON.parse(cleanedText);
+        setQuizData(parsedData);
+        setQuizSubmitted(false);
+        setStatus('✅ Quiz Ready');
+      } catch (parseError) {
+        console.error("Format Error:", data.text);
+        throw new Error("AI returned data in a weird format. Click 'Generate Quiz' again.");
+      }
+
+    } catch (e: any) {
+      console.error(e);
+      setStatus(`❌ ${e.message}`);
+    } finally {
+      setIsQuizLoading(false);
+    }
   };
 
   const handleGeneratePodcast = async () => {
