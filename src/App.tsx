@@ -61,7 +61,7 @@ export default function App() {
     });
   };
 
-  // --- UPDATED AUDIO CONTROLS (Pause/Play & Clean Text) ---
+  // --- AUDIO CONTROLS WITH MULTILINGUAL FIX ---
   const toggleAudio = () => {
     if (window.speechSynthesis.speaking) {
       if (window.speechSynthesis.paused) {
@@ -73,9 +73,12 @@ export default function App() {
       }
     } else {
       if (!podcastScript) return;
-      // Strip markdown asterisks and hashtags so the bot doesn't read them
       const cleanScript = podcastScript.replace(/[*#_]/g, '');
       const utterance = new SpeechSynthesisUtterance(cleanScript);
+      
+      // Force the browser to use the correct accent/language engine
+      utterance.lang = language === 'Hindi' ? 'hi-IN' : 'en-US';
+      
       utterance.rate = 0.95; 
       utterance.onend = () => setIsPlaying(false);
       utterance.onerror = () => setIsPlaying(false);
@@ -124,7 +127,6 @@ export default function App() {
       const scriptRes = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // --- NEW PROMPT HERE TO FORCE CLEAN PARAGRAPHS ---
         body: JSON.stringify({ fileData: base64, prompt: `Summarize this study material in a natural, conversational tone in ${language}. Write it as smooth, continuous plain text paragraphs. DO NOT use markdown, asterisks, bullet points, host labels, or stage directions. Target length: ${podcastDuration * 120} words.` })
       });
       
@@ -162,24 +164,11 @@ export default function App() {
           {status && <div className="mt-4 text-center text-blue-600 font-bold">{status}</div>}
         </div>
 
-        {/* Dashboard */}
-        {history.length > 0 && (
-          <div className="mb-8">
-            <h3 className="text-xs font-bold text-slate-400 uppercase mb-4 flex items-center gap-2"><History size={14}/> Dashboard</h3>
-            <div className="space-y-2">
-              {history.map((item) => (
-                <button key={item.id} onClick={() => { if (item.type === 'quiz') { setQuizData(item.data); setPodcastScript(null); setQuizSubmitted(true); } else { setPodcastScript(item.data.script); setQuizData(null); }}} className="w-full flex items-center justify-between p-3 bg-white border rounded-lg hover:border-blue-500 transition-all">
-                  <div className="flex items-center gap-3"><span>{item.type === 'quiz' ? '📝' : '🎙️'}</span><div className="text-left"><div className="text-sm font-bold text-slate-700">{item.filename}</div><div className="text-[10px] text-slate-400">{item.date}</div></div></div>
-                  <ChevronRight size={16} className="text-slate-300" />
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* --- MOVED CONTENT ABOVE DASHBOARD --- */}
 
         {/* QUIZ SECTION */}
         {quizData && (
-          <div className="bg-white p-8 rounded-2xl border shadow-sm space-y-8 animate-in fade-in duration-500">
+          <div className="bg-white p-8 rounded-2xl border shadow-sm space-y-8 animate-in fade-in duration-500 mb-8">
             <div className="flex justify-between items-center border-b pb-4"><h2 className="text-2xl font-bold text-slate-800">{quizData.quiz_title}</h2>{quizSubmitted && <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg font-bold">Score: {Object.keys(quizAnswers).filter(i => quizAnswers[parseInt(i)] === quizData.questions[parseInt(i)].correct_answer).length} / {quizData.questions.length}</div>}</div>
             {quizData.questions.map((q: any, i: number) => (
               <div key={i} className="space-y-4">
@@ -202,7 +191,7 @@ export default function App() {
 
         {/* PODCAST SECTION */}
         {podcastScript && (
-          <div className="bg-white p-8 rounded-2xl border shadow-sm space-y-6 animate-in fade-in duration-500">
+          <div className="bg-white p-8 rounded-2xl border shadow-sm space-y-6 animate-in fade-in duration-500 mb-8">
             <h2 className="text-xl font-bold flex items-center gap-2"><Mic className="text-emerald-500" /> AI Podcast Summary</h2>
             
             <div className="bg-slate-100 p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between border border-slate-200 gap-4">
@@ -226,6 +215,21 @@ export default function App() {
                </div>
             </div>
             <div className="bg-slate-50 p-6 rounded-2xl text-sm leading-relaxed text-slate-600 whitespace-pre-wrap border border-slate-100">{podcastScript}</div>
+          </div>
+        )}
+
+        {/* Dashboard (Moved to Bottom) */}
+        {history.length > 0 && (
+          <div className="mb-8">
+            <h3 className="text-xs font-bold text-slate-400 uppercase mb-4 flex items-center gap-2"><History size={14}/> Dashboard</h3>
+            <div className="space-y-2">
+              {history.map((item) => (
+                <button key={item.id} onClick={() => { if (item.type === 'quiz') { setQuizData(item.data); setPodcastScript(null); setQuizSubmitted(true); } else { setPodcastScript(item.data.script); setQuizData(null); }}} className="w-full flex items-center justify-between p-3 bg-white border rounded-lg hover:border-blue-500 transition-all">
+                  <div className="flex items-center gap-3"><span>{item.type === 'quiz' ? '📝' : '🎙️'}</span><div className="text-left"><div className="text-sm font-bold text-slate-700">{item.filename}</div><div className="text-[10px] text-slate-400">{item.date}</div></div></div>
+                  <ChevronRight size={16} className="text-slate-300" />
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
