@@ -17,13 +17,19 @@ app.post('/api/ai', async (req, res) => {
     const { prompt, fileData } = req.body;
     const apiKey = process.env.GEMINI_API_KEY;
 
+    // DIAGNOSTIC: This helps us see if the key is actually reaching the server
+    console.log(`API Key detected: ${apiKey ? 'YES (Starts with ' + apiKey.substring(0,4) + ')' : 'NO'}`);
+
     if (!apiKey) {
-      return res.status(500).json({ error: "GEMINI_API_KEY is missing on the server dashboard." });
+      return res.status(500).json({ error: "GEMINI_API_KEY is missing in Render dashboard." });
     }
 
-    // Updated constructor name
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }, { apiVersion: 'v1' });
+    
+    /** * FIX: We use the explicit versioned ID 'gemini-1.5-flash-001'.
+     * This bypasses the 'gemini-1.5-flash' alias which is currently 404-ing for you.
+     */
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-001" });
 
     const contents = [
       {
@@ -36,9 +42,11 @@ app.post('/api/ai', async (req, res) => {
     ];
 
     const result = await model.generateContent(contents);
-    res.json({ text: result.response.text() });
+    const responseText = result.response.text();
+    
+    res.json({ text: responseText });
   } catch (error) {
-    console.error("Backend Error:", error.message);
+    console.error("AI Error Details:", error);
     res.status(500).json({ error: error.message });
   }
 });
