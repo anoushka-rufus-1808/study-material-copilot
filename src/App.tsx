@@ -5,20 +5,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  FileText, 
-  Mic, 
-  BookOpen, 
-  Plus, 
-  Trash2, 
-  Play, 
-  Pause, 
-  Clock, 
-  CheckCircle2, 
-  XCircle,
-  History,
-  ChevronRight,
-  Loader2,
-  Volume2
+  FileText, Mic, BookOpen, Plus, Trash2, Play, Pause, 
+  Clock, CheckCircle2, XCircle, History, ChevronRight, Loader2, Volume2
 } from 'lucide-react';
 import { GoogleGenAI, Modality } from "@google/genai";
 import { clsx, type ClassValue } from 'clsx';
@@ -56,9 +44,9 @@ interface HistoryItem {
   data: any;
 }
 
-// --- Constants (STABLE MODELS) ---
-const TEXT_ENGINE = "gemini-1.5-flash";
-const AUDIO_ENGINE = "gemini-1.5-flash";
+// --- Constants (LATEST STABLE MODELS) ---
+const TEXT_ENGINE = "gemini-1.5-flash-latest";
+const AUDIO_ENGINE = "gemini-1.5-flash-latest";
 
 export default function App() {
   // --- State ---
@@ -81,7 +69,6 @@ export default function App() {
   const [notes, setNotes] = useState<StudyNote[]>([]);
   
   const [history, setHistory] = useState<HistoryItem[]>([]);
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [pendingNoteTime, setPendingNoteTime] = useState(0);
   const [noteText, setNoteText] = useState('');
@@ -91,16 +78,13 @@ export default function App() {
   // --- Initialization ---
   useEffect(() => {
     const savedHistory = localStorage.getItem('studyHistory');
-    if (savedHistory) {
-      setHistory(JSON.parse(savedHistory));
-    }
+    if (savedHistory) setHistory(JSON.parse(savedHistory));
   }, []);
 
   useEffect(() => {
     if (file) {
       const savedNotes = localStorage.getItem(`notes_${file.name}`);
-      if (savedNotes) setNotes(JSON.parse(savedNotes));
-      else setNotes([]);
+      setNotes(savedNotes ? JSON.parse(savedNotes) : []);
     }
   }, [file]);
 
@@ -137,15 +121,12 @@ export default function App() {
     const byteString = atob(base64Data);
     const byteArray = new Uint8Array(byteString.length);
     for (let i = 0; i < byteString.length; i++) byteArray[i] = byteString.charCodeAt(i);
-
     const sampleRate = 24000; 
     const buffer = new ArrayBuffer(44 + byteArray.length);
     const view = new DataView(buffer);
-
     const writeString = (offset: number, string: string) => {
       for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
     };
-
     writeString(0, 'RIFF');
     view.setUint32(4, 36 + byteArray.length, true);
     writeString(8, 'WAVE');
@@ -159,10 +140,7 @@ export default function App() {
     view.setUint16(34, 16, true); 
     writeString(36, 'data');
     view.setUint32(40, byteArray.length, true);
-
-    const pcmData = new Uint8Array(buffer, 44);
-    pcmData.set(byteArray);
-
+    new Uint8Array(buffer, 44).set(byteArray);
     return URL.createObjectURL(new Blob([view], { type: 'audio/wav' }));
   };
 
@@ -174,24 +152,26 @@ export default function App() {
     setStep(1);
 
     try {
-      // FIX: Use the Environment Variable from Render
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error("API Key not found. Check Render environment variables.");
+      // DIAGNOSTIC CHECK:
+      if (!apiKey || apiKey === "") {
+        throw new Error("VITE_GEMINI_API_KEY is missing or empty on Render. Please check your Environment Variables tab and redeploy.");
+      }
 
-      const ai = new GoogleGenAI(apiKey);
+      const genAI = new GoogleGenAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: TEXT_ENGINE });
       const base64 = await fileToBase64(file);
       
       setStep(2);
-      const model = ai.getGenerativeModel({ model: TEXT_ENGINE });
-      const response = await model.generateContent({
+      const result = await model.generateContent({
         contents: [
           { inlineData: { data: base64, mimeType: "application/pdf" } },
-          { text: `Generate a JSON quiz from this PDF in ${language}: {"quiz_title": "string", "questions": [{"question_text": "string", "options": {"A": "string", "B": "string", "C": "string", "D": "string"}, "correct_answer": "A|B|C|D", "explanation": "string"}]}. Return EXACTLY ${numQuestions} questions.` }
+          { text: `Return ONLY a JSON quiz for this PDF in ${language}: {"quiz_title": "string", "questions": [{"question_text": "string", "options": {"A": "string", "B": "string", "C": "string", "D": "string"}, "correct_answer": "A|B|C|D", "explanation": "string"}]}. Generate exactly ${numQuestions} questions.` }
         ],
         generationConfig: { responseMimeType: "application/json" }
       });
 
-      const data = JSON.parse(response.response.text() || '{}');
+      const data = JSON.parse(result.response.text());
       setQuizData(data);
       saveHistory({ id: Date.now().toString(), filename: file.name, type: 'quiz', date: new Date().toLocaleString(), data });
       setStatus('✅ Quiz Ready');
@@ -211,44 +191,39 @@ export default function App() {
     setStep(1);
 
     try {
-      // FIX: Use the Environment Variable from Render
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error("API Key not found. Check Render environment variables.");
+      if (!apiKey) throw new Error("VITE_GEMINI_API_KEY is missing. Check Render environment.");
 
-      const ai = new GoogleGenAI(apiKey);
+      const genAI = new GoogleGenAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: TEXT_ENGINE });
       const base64 = await fileToBase64(file);
       
       setStep(2);
-      const model = ai.getGenerativeModel({ model: TEXT_ENGINE });
-      const scriptResponse = await model.generateContent([
+      const scriptResult = await model.generateContent([
         { inlineData: { data: base64, mimeType: "application/pdf" } },
-        { text: `Summarize this PDF as a conversational script in ${language}. Target word count: ${podcastDuration * 120}. ONLY return spoken text.` }
+        { text: `Summarize this PDF as a conversational script in ${language}. Target: ${podcastDuration * 120} words. ONLY return spoken text.` }
       ]);
-
-      const script = scriptResponse.response.text()?.trim() || '';
+      const script = scriptResult.response.text().trim();
       setPodcastScript(script);
 
       setStep(3);
-      const ttsModel = ai.getGenerativeModel({ model: AUDIO_ENGINE });
-      const ttsResponse = await ttsModel.generateContent({
+      const ttsModel = genAI.getGenerativeModel({ model: AUDIO_ENGINE });
+      const ttsResult = await ttsModel.generateContent({
         contents: [{ parts: [{ text: script.slice(0, 10000) }] }],
         generationConfig: {
           responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: language === 'Hindi' ? 'Kore' : 'Zephyr' } }
-          }
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: language === 'Hindi' ? 'Kore' : 'Zephyr' } } }
         }
       });
 
-      const audioData = ttsResponse.response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      const audioData = ttsResult.response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (audioData) {
-        const playableUrl = createPlayableAudioUrl(audioData);
-        setAudioUrl(playableUrl);
-        saveHistory({ id: Date.now().toString(), filename: file.name, type: 'podcast', date: new Date().toLocaleString(), data: { script, audioUrl: playableUrl } });
+        const url = createPlayableAudioUrl(audioData);
+        setAudioUrl(url);
+        saveHistory({ id: Date.now().toString(), filename: file.name, type: 'podcast', date: new Date().toLocaleString(), data: { script, audioUrl: url } });
         setStatus('✅ Podcast Ready');
       }
     } catch (error: any) {
-      console.error(error);
       setStatus(`❌ Error: ${error.message}`);
     } finally {
       setIsPodcastLoading(false);
@@ -287,7 +262,6 @@ export default function App() {
           <p className="text-slate-500">Interactive AI Quizzes & Educational Podcasts</p>
         </header>
 
-        {/* Configuration Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8 mb-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div className="space-y-2">
@@ -349,11 +323,10 @@ export default function App() {
               {isPodcastLoading ? <Loader2 className="animate-spin" /> : <Mic className="w-5 h-5" />} Generate Podcast
             </button>
           </div>
-
           {status && <div className="mt-4 text-center font-medium text-blue-600">{status}</div>}
         </div>
 
-        {/* Dashboard Section */}
+        {/* Dashboard */}
         {history.length > 0 && (
           <div className="mb-8">
              <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -370,10 +343,7 @@ export default function App() {
                   >
                     <div className="flex items-center gap-3">
                       <span>{item.type === 'quiz' ? '📝' : '🎙️'}</span>
-                      <div className="text-left">
-                        <div className="text-sm font-semibold">{item.filename}</div>
-                        <div className="text-xs text-slate-400">{item.date}</div>
-                      </div>
+                      <div className="text-left"><div className="text-sm font-semibold">{item.filename}</div><div className="text-xs text-slate-400">{item.date}</div></div>
                     </div>
                     <ChevronRight className="w-4 h-4 text-slate-300" />
                   </button>
@@ -382,7 +352,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Results Sections */}
+        {/* Quiz & Podcast Results */}
         {quizData && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <h2 className="text-xl font-bold p-6 bg-white rounded-2xl border border-slate-200">{quizData.quiz_title}</h2>
@@ -417,7 +387,6 @@ export default function App() {
             <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
               <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><Mic className="text-emerald-500" /> AI Podcast Summary</h2>
               {audioUrl && <audio ref={audioRef} src={audioUrl} controls className="w-full mb-8" />}
-              
               <div className="mb-8">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="font-bold flex items-center gap-2"><Clock className="text-blue-500" /> Study Insights</h3>
@@ -426,9 +395,7 @@ export default function App() {
                 <div className="space-y-2">
                   {notes.map(note => (
                     <div key={note.id} className="flex items-center gap-3 p-3 bg-slate-50 border rounded-xl">
-                      <button onClick={() => handleSeek(note.timestamp)} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-md">
-                        {formatTime(note.timestamp)}
-                      </button>
+                      <button onClick={() => handleSeek(note.timestamp)} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-md">{formatTime(note.timestamp)}</button>
                       <span className="flex-1 text-sm">{note.text}</span>
                       <button onClick={() => saveNotes(notes.filter(n => n.id !== note.id))} className="text-slate-300 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
                     </div>
