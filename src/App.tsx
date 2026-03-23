@@ -124,7 +124,8 @@ export default function App() {
       const scriptRes = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileData: base64, prompt: `Summarize this as an engaging podcast script in ${language}. Target length: ${podcastDuration * 120} words.` })
+        // --- NEW PROMPT HERE TO FORCE CLEAN PARAGRAPHS ---
+        body: JSON.stringify({ fileData: base64, prompt: `Summarize this study material in a natural, conversational tone in ${language}. Write it as smooth, continuous plain text paragraphs. DO NOT use markdown, asterisks, bullet points, host labels, or stage directions. Target length: ${podcastDuration * 120} words.` })
       });
       
       const scriptData = await scriptRes.json();
