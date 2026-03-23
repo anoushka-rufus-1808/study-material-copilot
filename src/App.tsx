@@ -1,7 +1,6 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
- * Project: EduStream AI - Smart Study Copilot
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -46,8 +45,8 @@ interface HistoryItem {
 }
 
 // --- Constants (Stable Production Models) ---
-const TEXT_ENGINE = "gemini-1.5-flash";
-const AUDIO_ENGINE = "gemini-1.5-flash";
+const TEXT_ENGINE = "gemini-1.5-flash-latest";
+const AUDIO_ENGINE = "gemini-1.5-flash-latest";
 
 export default function App() {
   // --- State ---
@@ -55,7 +54,6 @@ export default function App() {
   const [language, setLanguage] = useState('English');
   const [numQuestions, setNumQuestions] = useState(5);
   const [podcastDuration, setPodcastDuration] = useState(3);
-  
   const [isQuizLoading, setIsQuizLoading] = useState(false);
   const [isPodcastLoading, setIsPodcastLoading] = useState(false);
   const [status, setStatus] = useState('');
@@ -68,13 +66,18 @@ export default function App() {
   const [podcastScript, setPodcastScript] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [notes, setNotes] = useState<StudyNote[]>([]);
-  
   const [history, setHistory] = useState<HistoryItem[]>([]);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [pendingNoteTime, setPendingNoteTime] = useState(0);
   const [noteText, setNoteText] = useState('');
 
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // --- THE MASTER KEY RESOLVER ---
+  const getApiKey = () => {
+    return import.meta.env.VITE_GEMINI_API_KEY || "";
+  };
 
   // --- Initialization ---
   useEffect(() => {
@@ -114,7 +117,7 @@ export default function App() {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = () => resolve((reader.result as string).split(',')[1]);
-      reader.onerror = error => reject(error);
+      reader.onerror = reject;
     });
   };
 
@@ -148,16 +151,17 @@ export default function App() {
   // --- Actions ---
   const handleGenerateQuiz = async () => {
     if (!file) return;
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      setStatus("❌ Error: API Key missing. Check Render Environment Variables.");
+      return;
+    }
+
     setIsQuizLoading(true);
     setStatus('Generating quiz...');
     setStep(1);
 
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey || apiKey === "undefined" || apiKey === "") {
-        throw new Error("API Key Missing: Ensure VITE_GEMINI_API_KEY is set in Render and the build command is updated.");
-      }
-
       const genAI = new GoogleGenAI(apiKey);
       const model = genAI.getGenerativeModel({ model: TEXT_ENGINE });
       const base64 = await fileToBase64(file);
@@ -178,7 +182,6 @@ export default function App() {
       saveHistory({ id: Date.now().toString(), filename: file.name, type: 'quiz', date: new Date().toLocaleString(), data });
       setStatus('✅ Quiz Ready');
     } catch (error: any) {
-      console.error(error);
       setStatus(`❌ Error: ${error.message}`);
     } finally {
       setIsQuizLoading(false);
@@ -188,14 +191,17 @@ export default function App() {
 
   const handleGeneratePodcast = async () => {
     if (!file) return;
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      setStatus("❌ Error: API Key missing.");
+      return;
+    }
+
     setIsPodcastLoading(true);
     setStatus('Reading document...');
     setStep(1);
 
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error("API Key Missing.");
-
       const genAI = new GoogleGenAI(apiKey);
       const model = genAI.getGenerativeModel({ model: TEXT_ENGINE });
       const base64 = await fileToBase64(file);
@@ -203,7 +209,7 @@ export default function App() {
       setStep(2);
       const scriptResult = await model.generateContent([
         { inlineData: { data: base64, mimeType: "application/pdf" } },
-        { text: `Summarize this PDF as a conversational script in ${language}. Target: ${podcastDuration * 120} words. ONLY return spoken text.` }
+        { text: `Summarize this PDF as a conversational script in ${language}. Target word count: ${podcastDuration * 120}. ONLY return spoken text.` }
       ]);
       const script = scriptResult.response.text().trim();
       setPodcastScript(script);
@@ -264,6 +270,7 @@ export default function App() {
           <p className="text-slate-500">Interactive AI Quizzes & Educational Podcasts</p>
         </header>
 
+        {/* Configuration Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8 mb-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div className="space-y-2">
@@ -294,8 +301,7 @@ export default function App() {
             <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-700">Questions</label>
               <input 
-                type="number" min="1" max="20" 
-                value={numQuestions}
+                type="number" min="1" max="20" value={numQuestions}
                 onChange={(e) => setNumQuestions(parseInt(e.target.value) || 5)}
                 className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none"
               />
@@ -303,8 +309,7 @@ export default function App() {
             <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-700">Podcast (Mins)</label>
               <input 
-                type="number" min="2" max="10" 
-                value={podcastDuration}
+                type="number" min="2" max="10" value={podcastDuration}
                 onChange={(e) => setPodcastDuration(parseInt(e.target.value) || 3)}
                 className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none"
               />
@@ -399,7 +404,7 @@ export default function App() {
                     <div key={note.id} className="flex items-center gap-3 p-3 bg-slate-50 border rounded-xl hover:shadow-sm transition-all group">
                       <button onClick={() => handleSeek(note.timestamp)} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-md hover:bg-blue-200 transition-colors">{formatTime(note.timestamp)}</button>
                       <span className="flex-1 text-sm text-slate-700">{note.text}</span>
-                      <button onClick={() => saveNotes(notes.filter(n => n.id !== note.id))} className="text-slate-300 hover:text-red-500 p-1 rounded-md transition-colors"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={() => saveNotes(notes.filter(n => n.id !== note.id))} className="p-1 text-slate-300 hover:text-red-500 rounded-md transition-colors"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   ))}
                 </div>
