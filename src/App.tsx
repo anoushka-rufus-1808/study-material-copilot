@@ -57,8 +57,8 @@ interface HistoryItem {
 }
 
 // --- Constants ---
-const GEMINI_MODEL = "gemini-3-flash-preview";
-const TTS_MODEL = "gemini-2.5-flash-preview-tts";
+const TEXT_ENGINE = "gemini-1.5-flash";
+const AUDIO_ENGINE = "gemini-1.5-flash";
 
 export default function App() {
   // --- State ---
@@ -237,7 +237,7 @@ export default function App() {
       setStatus('🧠 Analyzing PDF and writing questions...');
       setStep(2);
       const response = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+        model: TEXT_ENGINE,
         contents: [
           {
             inlineData: { data: base64, mimeType: "application/pdf" }
@@ -299,7 +299,7 @@ export default function App() {
       setStep(2);
       
       const scriptResponse = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+        model: TEXT_ENGINE,
         contents: [
           { inlineData: { data: base64, mimeType: "application/pdf" } },
           { text: `You are an expert podcast host. Summarize this PDF into a conversational, engaging script in ${language}. Target length: ${podcastDuration * 120} words. IMPORTANT: Return ONLY the spoken text.` }
@@ -317,7 +317,7 @@ export default function App() {
       const safeScript = script.slice(0, 10000); 
 
       const ttsResponse = await ai.models.generateContent({
-        model: TTS_MODEL,
+        model: AUDIO_ENGINE,
         contents: [{ parts: [{ text: safeScript }] }],
         config: {
           responseModalities: [Modality.AUDIO],
