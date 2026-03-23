@@ -25,15 +25,23 @@ export default function App() {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [noteText, setNoteText] = useState('');
+  
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
 
   useEffect(() => {
-    // Prime the pump: force the browser to start fetching voices in the background immediately
-    window.speechSynthesis.getVoices();
+    const updateVoices = () => {
+      setAvailableVoices(window.speechSynthesis.getVoices());
+    };
+    
+    updateVoices();
+    window.speechSynthesis.onvoiceschanged = updateVoices;
+
     const saved = localStorage.getItem('studyHistory');
     if (saved) setHistory(JSON.parse(saved));
     
     return () => { 
       window.speechSynthesis.cancel(); 
+      window.speechSynthesis.onvoiceschanged = null;
     };
   }, []);
 
@@ -66,7 +74,6 @@ export default function App() {
     });
   };
 
-  // --- AUDIO CONTROLS WITH DIRECT FETCH & AGGRESSIVE TARGETING ---
   const toggleAudio = () => {
     if (window.speechSynthesis.speaking) {
       if (window.speechSynthesis.paused) {
@@ -79,23 +86,17 @@ export default function App() {
     } else {
       if (!podcastScript) return;
       
-      // Clean script of all markdown that confuses the TTS engine
       const cleanScript = podcastScript.replace(/[*#_`~]/g, '');
       const utterance = new SpeechSynthesisUtterance(cleanScript);
       
-      // Fetch fresh voices at the exact moment of the click
       const voices = window.speechSynthesis.getVoices();
       
       if (language === 'Hindi') {
         utterance.lang = 'hi-IN';
-        // Aggressively hunt for standard and Windows 11 specific Hindi voices
+        // The most bulletproof fallback possible: grab literally anything that starts with 'hi'
         const hindiVoice = voices.find(v => 
-          v.lang.toLowerCase().includes('hi') || 
-          v.name.toLowerCase().includes('hindi') ||
-          v.name.toLowerCase().includes('india') ||
-          v.name.toLowerCase().includes('hemant') || 
-          v.name.toLowerCase().includes('kalpana') || 
-          v.name.toLowerCase().includes('swara')
+          v.lang.toLowerCase().startsWith('hi') || 
+          v.name.toLowerCase().includes('hindi')
         );
         
         if (hindiVoice) {
@@ -109,7 +110,7 @@ export default function App() {
         }
       }
       
-      utterance.rate = 0.85; // Slower speed so the Hindi engine clearly articulates
+      utterance.rate = 0.85; 
       utterance.onend = () => setIsPlaying(false);
       utterance.onerror = () => setIsPlaying(false);
       
@@ -247,7 +248,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Dashboard (Moved to Bottom) */}
+        {/* Dashboard */}
         {history.length > 0 && (
           <div className="mb-8">
             <h3 className="text-xs font-bold text-slate-400 uppercase mb-4 flex items-center gap-2"><History size={14}/> Dashboard</h3>
