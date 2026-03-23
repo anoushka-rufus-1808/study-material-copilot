@@ -12,44 +12,15 @@ import { GoogleGenAI, Modality } from "@google/genai";
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
-// --- Utility ---
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// --- Types ---
-interface QuizQuestion {
-  question_text: string;
-  options: { [key: string]: string };
-  correct_answer: string;
-  explanation: string;
-}
-
-interface QuizData {
-  quiz_title: string;
-  questions: QuizQuestion[];
-}
-
-interface StudyNote {
-  id: string;
-  timestamp: number;
-  text: string;
-}
-
-interface HistoryItem {
-  id: string;
-  filename: string;
-  type: 'quiz' | 'podcast';
-  date: string;
-  data: any;
-}
-
-// --- Constants (Stable Production Models) ---
+// --- Constants ---
 const TEXT_ENGINE = "gemini-1.5-flash-latest";
 const AUDIO_ENGINE = "gemini-1.5-flash-latest";
 
 export default function App() {
-  // --- State ---
   const [file, setFile] = useState<File | null>(null);
   const [language, setLanguage] = useState('English');
   const [numQuestions, setNumQuestions] = useState(5);
@@ -59,30 +30,22 @@ export default function App() {
   const [status, setStatus] = useState('');
   const [step, setStep] = useState(0); 
 
-  const [quizData, setQuizData] = useState<QuizData | null>(null);
+  const [quizData, setQuizData] = useState<any>(null);
   const [quizAnswers, setQuizAnswers] = useState<Record<number, string>>({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
-
   const [podcastScript, setPodcastScript] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [notes, setNotes] = useState<StudyNote[]>([]);
-  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [notes, setNotes] = useState<any[]>([]);
+  const [history, setHistory] = useState<any[]>([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [pendingNoteTime, setPendingNoteTime] = useState(0);
   const [noteText, setNoteText] = useState('');
-
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // --- THE MASTER KEY RESOLVER ---
-  const getApiKey = () => {
-    return import.meta.env.VITE_GEMINI_API_KEY || "";
-  };
-
-  // --- Initialization ---
   useEffect(() => {
-    const savedHistory = localStorage.getItem('studyHistory');
-    if (savedHistory) setHistory(JSON.parse(savedHistory));
+    const saved = localStorage.getItem('studyHistory');
+    if (saved) setHistory(JSON.parse(saved));
   }, []);
 
   useEffect(() => {
@@ -92,14 +55,13 @@ export default function App() {
     }
   }, [file]);
 
-  // --- Helpers ---
-  const saveHistory = (item: HistoryItem) => {
+  const saveHistory = (item: any) => {
     const newHistory = [item, ...history].slice(0, 10);
     setHistory(newHistory);
     localStorage.setItem('studyHistory', JSON.stringify(newHistory));
   };
 
-  const saveNotes = (newNotes: StudyNote[]) => {
+  const saveNotes = (newNotes: any[]) => {
     if (file) {
       setNotes(newNotes);
       localStorage.setItem(`notes_${file.name}`, JSON.stringify(newNotes));
@@ -121,6 +83,7 @@ export default function App() {
     });
   };
 
+  // WAV Header injection for raw PCM data compatibility
   const createPlayableAudioUrl = (base64Data: string) => {
     const byteString = atob(base64Data);
     const byteArray = new Uint8Array(byteString.length);
@@ -148,111 +111,68 @@ export default function App() {
     return URL.createObjectURL(new Blob([view], { type: 'audio/wav' }));
   };
 
-  // --- Actions ---
   const handleGenerateQuiz = async () => {
     if (!file) return;
-    const apiKey = getApiKey();
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     if (!apiKey) {
-      setStatus("❌ Error: API Key missing. Check Render Environment Variables.");
+      setStatus("❌ Error: API Key missing from build environment.");
       return;
     }
 
     setIsQuizLoading(true);
     setStatus('Generating quiz...');
-    setStep(1);
-
     try {
       const genAI = new GoogleGenAI(apiKey);
       const model = genAI.getGenerativeModel({ model: TEXT_ENGINE });
       const base64 = await fileToBase64(file);
-      
-      setStep(2);
       const result = await model.generateContent({
         contents: [
           { inlineData: { data: base64, mimeType: "application/pdf" } },
-          { text: `Return ONLY a JSON quiz for this PDF in ${language}: {"quiz_title": "string", "questions": [{"question_text": "string", "options": {"A": "string", "B": "string", "C": "string", "D": "string"}, "correct_answer": "A|B|C|D", "explanation": "string"}]}. Generate exactly ${numQuestions} questions.` }
+          { text: `Return a JSON quiz in ${language}: {"quiz_title": "string", "questions": [{"question_text": "string", "options": {"A": "string", "B": "string", "C": "string", "D": "string"}, "correct_answer": "A|B|C|D", "explanation": "string"}]}. Generate ${numQuestions} questions.` }
         ],
         generationConfig: { responseMimeType: "application/json" }
       });
-
-      const data = JSON.parse(result.response.text());
-      setQuizData(data);
-      setQuizAnswers({});
+      setQuizData(JSON.parse(result.response.text()));
       setQuizSubmitted(false);
-      saveHistory({ id: Date.now().toString(), filename: file.name, type: 'quiz', date: new Date().toLocaleString(), data });
+      saveHistory({ id: Date.now().toString(), filename: file.name, type: 'quiz', date: new Date().toLocaleString(), data: JSON.parse(result.response.text()) });
       setStatus('✅ Quiz Ready');
-    } catch (error: any) {
-      setStatus(`❌ Error: ${error.message}`);
+    } catch (e: any) {
+      setStatus(`❌ Error: ${e.message}`);
     } finally {
       setIsQuizLoading(false);
-      setStep(0);
     }
   };
 
   const handleGeneratePodcast = async () => {
     if (!file) return;
-    const apiKey = getApiKey();
-    if (!apiKey) {
-      setStatus("❌ Error: API Key missing.");
-      return;
-    }
-
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) return;
     setIsPodcastLoading(true);
-    setStatus('Reading document...');
-    setStep(1);
-
+    setStatus('Generating podcast...');
     try {
       const genAI = new GoogleGenAI(apiKey);
       const model = genAI.getGenerativeModel({ model: TEXT_ENGINE });
       const base64 = await fileToBase64(file);
-      
-      setStep(2);
-      const scriptResult = await model.generateContent([
-        { inlineData: { data: base64, mimeType: "application/pdf" } },
-        { text: `Summarize this PDF as a conversational script in ${language}. Target word count: ${podcastDuration * 120}. ONLY return spoken text.` }
-      ]);
-      const script = scriptResult.response.text().trim();
+      const scriptRes = await model.generateContent([{ inlineData: { data: base64, mimeType: "application/pdf" } }, { text: `Summarize as a podcast script in ${language}.` }]);
+      const script = scriptRes.response.text().trim();
       setPodcastScript(script);
-
-      setStep(3);
       const ttsModel = genAI.getGenerativeModel({ model: AUDIO_ENGINE });
-      const ttsResult = await ttsModel.generateContent({
+      const ttsRes = await ttsModel.generateContent({
         contents: [{ parts: [{ text: script.slice(0, 10000) }] }],
-        generationConfig: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: language === 'Hindi' ? 'Kore' : 'Zephyr' } } }
-        }
+        generationConfig: { responseModalities: [Modality.AUDIO], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: language === 'Hindi' ? 'Kore' : 'Zephyr' } } } }
       });
-
-      const audioData = ttsResult.response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      const audioData = ttsRes.response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (audioData) {
         const url = createPlayableAudioUrl(audioData);
         setAudioUrl(url);
         saveHistory({ id: Date.now().toString(), filename: file.name, type: 'podcast', date: new Date().toLocaleString(), data: { script, audioUrl: url } });
-        setStatus('✅ Podcast Ready');
       }
-    } catch (error: any) {
-      setStatus(`❌ Error: ${error.message}`);
+      setStatus('✅ Podcast Ready');
+    } catch (e: any) {
+      setStatus(`❌ Error: ${e.message}`);
     } finally {
       setIsPodcastLoading(false);
-      setStep(0);
     }
-  };
-
-  const handleAddNote = () => {
-    if (!audioRef.current) return;
-    setPendingNoteTime(audioRef.current.currentTime);
-    audioRef.current.pause();
-    setNoteText('');
-    setIsModalOpen(true);
-  };
-
-  const confirmAddNote = () => {
-    if (noteText.trim()) {
-      const newNote: StudyNote = { id: Date.now().toString(), timestamp: pendingNoteTime, text: noteText.trim() };
-      saveNotes([...notes, newNote].sort((a, b) => a.timestamp - b.timestamp));
-    }
-    setIsModalOpen(false);
   };
 
   const handleSeek = (time: number) => {
@@ -266,170 +186,109 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
         <header className="text-center mb-10">
-          <h1 className="text-4xl font-bold tracking-tight text-slate-900 mb-2">EduStream AI</h1>
-          <p className="text-slate-500">Interactive AI Quizzes & Educational Podcasts</p>
+          <h1 className="text-4xl font-bold text-slate-900 mb-2">EduStream AI</h1>
+          <p className="text-slate-500 text-sm">Interactive AI Quizzes & Educational Podcasts</p>
         </header>
 
-        {/* Configuration Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8 mb-8">
+        <div className="bg-white rounded-2xl shadow-sm border p-6 mb-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                <FileText className="w-4 h-4" /> 1. Upload Document (PDF)
-              </label>
-              <input 
-                type="file" accept="application/pdf"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none cursor-pointer"
-              />
+              <label className="text-sm font-bold flex items-center gap-2"><FileText size={16}/> 1. Upload PDF</label>
+              <input type="file" accept="application/pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} className="w-full border p-2 rounded-lg" />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                <Volume2 className="w-4 h-4" /> 2. Language
-              </label>
-              <select 
-                value={language} onChange={(e) => setLanguage(e.target.value)}
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none"
-              >
+              <label className="text-sm font-bold flex items-center gap-2"><Volume2 size={16}/> 2. Language</label>
+              <select value={language} onChange={(e) => setLanguage(e.target.value)} className="w-full border p-2 rounded-lg">
                 <option value="English">English</option>
                 <option value="Hindi">Hindi</option>
               </select>
             </div>
           </div>
-
           <div className="grid grid-cols-2 gap-6 mb-8">
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">Questions</label>
-              <input 
-                type="number" min="1" max="20" value={numQuestions}
-                onChange={(e) => setNumQuestions(parseInt(e.target.value) || 5)}
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none"
-              />
+              <label className="text-sm font-bold">Questions</label>
+              <input type="number" value={numQuestions} onChange={(e) => setNumQuestions(parseInt(e.target.value))} className="w-full border p-2 rounded-lg" />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">Podcast (Mins)</label>
-              <input 
-                type="number" min="2" max="10" value={podcastDuration}
-                onChange={(e) => setPodcastDuration(parseInt(e.target.value) || 3)}
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none"
-              />
+              <label className="text-sm font-bold">Podcast (Mins)</label>
+              <input type="number" value={podcastDuration} onChange={(e) => setPodcastDuration(parseInt(e.target.value))} className="w-full border p-2 rounded-lg" />
             </div>
           </div>
-
-          <div className="flex flex-col md:flex-row gap-4">
-            <button 
-              onClick={handleGenerateQuiz} disabled={isQuizLoading || isPodcastLoading || !file}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-all disabled:bg-slate-300 shadow-md"
-            >
-              {isQuizLoading ? <Loader2 className="animate-spin" /> : <BookOpen className="w-5 h-5" />} Generate Quiz
+          <div className="flex gap-4">
+            <button onClick={handleGenerateQuiz} disabled={isQuizLoading || !file} className="flex-1 bg-blue-600 text-white p-3 rounded-xl font-bold flex items-center justify-center gap-2 disabled:bg-slate-300 transition-all">
+              {isQuizLoading ? <Loader2 className="animate-spin" /> : <BookOpen size={20}/>} Generate Quiz
             </button>
-            <button 
-              onClick={handleGeneratePodcast} disabled={isQuizLoading || isPodcastLoading || !file}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-all disabled:bg-slate-300 shadow-md"
-            >
-              {isPodcastLoading ? <Loader2 className="animate-spin" /> : <Mic className="w-5 h-5" />} Generate Podcast
+            <button onClick={handleGeneratePodcast} disabled={isPodcastLoading || !file} className="flex-1 bg-emerald-600 text-white p-3 rounded-xl font-bold flex items-center justify-center gap-2 disabled:bg-slate-300 transition-all">
+              {isPodcastLoading ? <Loader2 className="animate-spin" /> : <Mic size={20}/>} Generate Podcast
             </button>
           </div>
-          {status && <div className="mt-4 text-center font-medium text-blue-600">{status}</div>}
+          {status && <div className="mt-4 text-center text-blue-600 font-bold">{status}</div>}
         </div>
 
-        {/* Dashboard */}
+        {/* Study Dashboard */}
         {history.length > 0 && (
           <div className="mb-8">
-             <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <History className="w-4 h-4" /> Study Dashboard
-              </h3>
-              <div className="space-y-2">
-                {history.map((item) => (
-                  <button 
-                    key={item.id} onClick={() => {
-                      if (item.type === 'quiz') { setQuizData(item.data); setPodcastScript(null); setAudioUrl(null); setQuizSubmitted(false); }
-                      else { setPodcastScript(item.data.script); setAudioUrl(item.data.audioUrl); setQuizData(null); }
-                    }}
-                    className="w-full flex items-center justify-between p-3 bg-white hover:bg-slate-50 rounded-lg border border-slate-200 transition-colors group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span>{item.type === 'quiz' ? '📝' : '🎙️'}</span>
-                      <div className="text-left"><div className="text-sm font-semibold text-slate-700 group-hover:text-blue-600 transition-colors">{item.filename}</div><div className="text-xs text-slate-400">{item.date}</div></div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-slate-300" />
-                  </button>
-                ))}
-              </div>
+            <h3 className="text-xs font-bold text-slate-400 uppercase mb-4 flex items-center gap-2"><History size={14}/> Dashboard</h3>
+            <div className="space-y-2">
+              {history.map((item) => (
+                <button key={item.id} onClick={() => { if (item.type === 'quiz') setQuizData(item.data); else { setPodcastScript(item.data.script); setAudioUrl(item.data.audioUrl); }}} className="w-full flex items-center justify-between p-3 bg-white border rounded-lg hover:border-blue-500 transition-all">
+                  <div className="flex items-center gap-3">
+                    <span>{item.type === 'quiz' ? '📝' : '🎙️'}</span>
+                    <div className="text-left"><div className="text-sm font-bold">{item.filename}</div><div className="text-[10px] text-slate-400">{item.date}</div></div>
+                  </div>
+                  <ChevronRight size={16} className="text-slate-300" />
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
         {/* Results */}
         {quizData && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h2 className="text-xl font-bold p-6 bg-white rounded-2xl border border-slate-200">{quizData.quiz_title}</h2>
-            {quizData.questions.map((q, i) => (
-              <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200 space-y-4">
-                <p className="font-semibold">{i + 1}. {q.question_text}</p>
+          <div className="bg-white p-8 rounded-2xl border shadow-sm space-y-8 animate-in fade-in duration-500">
+            <h2 className="text-2xl font-bold text-slate-800">{quizData.quiz_title}</h2>
+            {quizData.questions.map((q: any, i: number) => (
+              <div key={i} className="space-y-4">
+                <p className="font-bold">{i+1}. {q.question_text}</p>
                 <div className="grid gap-2">
-                  {Object.entries(q.options).map(([key, val]) => (
-                    <button 
-                      key={key} disabled={quizSubmitted}
-                      onClick={() => setQuizAnswers({...quizAnswers, [i]: key})}
-                      className={cn(
-                        "text-left p-4 border rounded-xl transition-all",
-                        quizAnswers[i] === key ? "border-blue-500 bg-blue-50" : "border-slate-100 hover:bg-slate-50",
-                        quizSubmitted && q.correct_answer === key ? "border-emerald-500 bg-emerald-50" : "",
-                        quizSubmitted && quizAnswers[i] === key && q.correct_answer !== key ? "border-red-500 bg-red-50" : ""
-                      )}
-                    >
-                      {key}. {val}
-                    </button>
+                  {Object.entries(q.options).map(([k, v]: any) => (
+                    <button key={k} className="w-full text-left p-4 border rounded-xl hover:bg-slate-50 transition-all">{k}. {v}</button>
                   ))}
                 </div>
-                {quizSubmitted && <div className="p-4 bg-slate-50 rounded-xl text-sm italic">Explanation: {q.explanation}</div>}
               </div>
             ))}
-            {!quizSubmitted && <button onClick={() => setQuizSubmitted(true)} className="w-full py-4 bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-slate-800 transition-all">Submit Quiz</button>}
           </div>
         )}
 
         {podcastScript && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-            <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
-              <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><Mic className="text-emerald-500" /> AI Podcast Summary</h2>
-              {audioUrl && <audio ref={audioRef} src={audioUrl} controls className="w-full mb-8" />}
-              <div className="mb-8">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-bold flex items-center gap-2"><Clock className="text-blue-500" /> Study Insights</h3>
-                  <button onClick={handleAddNote} className="text-sm font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-all">Add Note</button>
-                </div>
-                <div className="space-y-2">
+          <div className="bg-white p-8 rounded-2xl border shadow-sm space-y-6 animate-in fade-in duration-500">
+            <h2 className="text-xl font-bold flex items-center gap-2"><Mic className="text-emerald-500" /> AI Podcast Summary</h2>
+            {audioUrl && <audio ref={audioRef} src={audioUrl} controls className="w-full" />}
+            
+            <div className="space-y-4">
+               <div className="flex justify-between items-center"><h3 className="font-bold flex items-center gap-2"><Clock size={18} className="text-blue-500" /> Study Insights</h3><button onClick={() => { setPendingNoteTime(audioRef.current?.currentTime || 0); setIsModalOpen(true); }} className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg hover:bg-blue-100">+ Add Note</button></div>
+               <div className="space-y-2">
                   {notes.map(note => (
-                    <div key={note.id} className="flex items-center gap-3 p-3 bg-slate-50 border rounded-xl hover:shadow-sm transition-all group">
-                      <button onClick={() => handleSeek(note.timestamp)} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-md hover:bg-blue-200 transition-colors">{formatTime(note.timestamp)}</button>
-                      <span className="flex-1 text-sm text-slate-700">{note.text}</span>
-                      <button onClick={() => saveNotes(notes.filter(n => n.id !== note.id))} className="p-1 text-slate-300 hover:text-red-500 rounded-md transition-colors"><Trash2 className="w-4 h-4" /></button>
+                    <div key={note.id} className="flex items-center gap-3 p-3 bg-slate-50 border rounded-xl">
+                      <button onClick={() => handleSeek(note.timestamp)} className="px-2 py-1 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-md">{formatTime(note.timestamp)}</button>
+                      <span className="flex-1 text-xs text-slate-600">{note.text}</span>
+                      <button onClick={() => saveNotes(notes.filter(n => n.id !== note.id))} className="text-slate-300 hover:text-red-500"><Trash2 size={14}/></button>
                     </div>
                   ))}
-                </div>
-              </div>
-              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 text-sm leading-relaxed whitespace-pre-wrap text-slate-600">{podcastScript}</div>
+               </div>
             </div>
+            <div className="bg-slate-50 p-6 rounded-2xl text-sm leading-relaxed text-slate-600 italic whitespace-pre-wrap border border-slate-100">"{podcastScript}"</div>
           </div>
         )}
 
         {/* Modal */}
         {isModalOpen && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl animate-in zoom-in-95">
-              <h3 className="text-xl font-bold mb-2">Add Study Note</h3>
-              <p className="text-sm text-slate-500 mb-4">Time: {formatTime(pendingNoteTime)}</p>
-              <input 
-                autoFocus value={noteText} onChange={e => setNoteText(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && confirmAddNote()}
-                placeholder="Important point about..."
-                className="w-full px-4 py-3 border rounded-xl mb-6 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-              />
-              <div className="flex justify-end gap-3">
-                <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 font-semibold hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
-                <button onClick={confirmAddNote} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg shadow-md hover:bg-blue-700 transition-all">Save Note</button>
-              </div>
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+              <h3 className="text-lg font-bold mb-1">Add Study Note</h3>
+              <p className="text-xs text-slate-400 mb-4">Capturing insight at {formatTime(pendingNoteTime)}</p>
+              <input autoFocus value={noteText} onChange={e => setNoteText(e.target.value)} onKeyDown={e => e.key === 'Enter' && (saveNotes([...notes, { id: Date.now().toString(), timestamp: pendingNoteTime, text: noteText }]), setIsModalOpen(false))} placeholder="Key takeaway..." className="w-full border p-3 rounded-xl mb-6 outline-none focus:ring-2 focus:ring-blue-500" />
+              <div className="flex justify-end gap-3"><button onClick={() => setIsModalOpen(false)} className="text-sm font-bold text-slate-400">Cancel</button><button onClick={() => { saveNotes([...notes, { id: Date.now().toString(), timestamp: pendingNoteTime, text: noteText }]); setIsModalOpen(false); }} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold shadow-md hover:bg-blue-700 transition-all">Save</button></div>
             </div>
           </div>
         )}
