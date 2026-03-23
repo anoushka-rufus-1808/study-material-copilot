@@ -56,9 +56,9 @@ interface HistoryItem {
   data: any;
 }
 
-// --- Constants (UPDATED FOR COMPATIBILITY) ---
-const TEXT_ENGINE = "gemini-1.5-flash-preview-0514";
-const AUDIO_ENGINE = "gemini-1.5-flash-preview-0514";
+// --- Constants ---
+const TEXT_ENGINE = "gemini-1.5-flash";
+const AUDIO_ENGINE = "gemini-1.5-flash";
 
 export default function App() {
   // --- State ---
