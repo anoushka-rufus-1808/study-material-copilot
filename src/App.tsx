@@ -1,6 +1,7 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
+ * Project: EduStream AI - Smart Study Copilot
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -44,9 +45,9 @@ interface HistoryItem {
   data: any;
 }
 
-// --- Constants (LATEST STABLE MODELS) ---
-const TEXT_ENGINE = "gemini-1.5-flash-latest";
-const AUDIO_ENGINE = "gemini-1.5-flash-latest";
+// --- Constants (Stable Production Models) ---
+const TEXT_ENGINE = "gemini-1.5-flash";
+const AUDIO_ENGINE = "gemini-1.5-flash";
 
 export default function App() {
   // --- State ---
@@ -153,9 +154,8 @@ export default function App() {
 
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      // DIAGNOSTIC CHECK:
-      if (!apiKey || apiKey === "") {
-        throw new Error("VITE_GEMINI_API_KEY is missing or empty on Render. Please check your Environment Variables tab and redeploy.");
+      if (!apiKey || apiKey === "undefined" || apiKey === "") {
+        throw new Error("API Key Missing: Ensure VITE_GEMINI_API_KEY is set in Render and the build command is updated.");
       }
 
       const genAI = new GoogleGenAI(apiKey);
@@ -173,6 +173,8 @@ export default function App() {
 
       const data = JSON.parse(result.response.text());
       setQuizData(data);
+      setQuizAnswers({});
+      setQuizSubmitted(false);
       saveHistory({ id: Date.now().toString(), filename: file.name, type: 'quiz', date: new Date().toLocaleString(), data });
       setStatus('✅ Quiz Ready');
     } catch (error: any) {
@@ -192,7 +194,7 @@ export default function App() {
 
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error("VITE_GEMINI_API_KEY is missing. Check Render environment.");
+      if (!apiKey) throw new Error("API Key Missing.");
 
       const genAI = new GoogleGenAI(apiKey);
       const model = genAI.getGenerativeModel({ model: TEXT_ENGINE });
@@ -271,7 +273,7 @@ export default function App() {
               <input 
                 type="file" accept="application/pdf"
                 onChange={(e) => setFile(e.target.files?.[0] || null)}
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none"
+                className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none cursor-pointer"
               />
             </div>
             <div className="space-y-2">
@@ -312,13 +314,13 @@ export default function App() {
           <div className="flex flex-col md:flex-row gap-4">
             <button 
               onClick={handleGenerateQuiz} disabled={isQuizLoading || isPodcastLoading || !file}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-all disabled:bg-slate-300"
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-all disabled:bg-slate-300 shadow-md"
             >
               {isQuizLoading ? <Loader2 className="animate-spin" /> : <BookOpen className="w-5 h-5" />} Generate Quiz
             </button>
             <button 
               onClick={handleGeneratePodcast} disabled={isQuizLoading || isPodcastLoading || !file}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-all disabled:bg-slate-300"
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-all disabled:bg-slate-300 shadow-md"
             >
               {isPodcastLoading ? <Loader2 className="animate-spin" /> : <Mic className="w-5 h-5" />} Generate Podcast
             </button>
@@ -336,14 +338,14 @@ export default function App() {
                 {history.map((item) => (
                   <button 
                     key={item.id} onClick={() => {
-                      if (item.type === 'quiz') { setQuizData(item.data); setPodcastScript(null); }
+                      if (item.type === 'quiz') { setQuizData(item.data); setPodcastScript(null); setAudioUrl(null); setQuizSubmitted(false); }
                       else { setPodcastScript(item.data.script); setAudioUrl(item.data.audioUrl); setQuizData(null); }
                     }}
                     className="w-full flex items-center justify-between p-3 bg-white hover:bg-slate-50 rounded-lg border border-slate-200 transition-colors group"
                   >
                     <div className="flex items-center gap-3">
                       <span>{item.type === 'quiz' ? '📝' : '🎙️'}</span>
-                      <div className="text-left"><div className="text-sm font-semibold">{item.filename}</div><div className="text-xs text-slate-400">{item.date}</div></div>
+                      <div className="text-left"><div className="text-sm font-semibold text-slate-700 group-hover:text-blue-600 transition-colors">{item.filename}</div><div className="text-xs text-slate-400">{item.date}</div></div>
                     </div>
                     <ChevronRight className="w-4 h-4 text-slate-300" />
                   </button>
@@ -352,7 +354,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Quiz & Podcast Results */}
+        {/* Results */}
         {quizData && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <h2 className="text-xl font-bold p-6 bg-white rounded-2xl border border-slate-200">{quizData.quiz_title}</h2>
@@ -378,7 +380,7 @@ export default function App() {
                 {quizSubmitted && <div className="p-4 bg-slate-50 rounded-xl text-sm italic">Explanation: {q.explanation}</div>}
               </div>
             ))}
-            {!quizSubmitted && <button onClick={() => setQuizSubmitted(true)} className="w-full py-4 bg-slate-900 text-white font-bold rounded-xl">Submit Quiz</button>}
+            {!quizSubmitted && <button onClick={() => setQuizSubmitted(true)} className="w-full py-4 bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-slate-800 transition-all">Submit Quiz</button>}
           </div>
         )}
 
@@ -390,38 +392,38 @@ export default function App() {
               <div className="mb-8">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="font-bold flex items-center gap-2"><Clock className="text-blue-500" /> Study Insights</h3>
-                  <button onClick={handleAddNote} className="text-sm font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg">Add Note</button>
+                  <button onClick={handleAddNote} className="text-sm font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-all">Add Note</button>
                 </div>
                 <div className="space-y-2">
                   {notes.map(note => (
-                    <div key={note.id} className="flex items-center gap-3 p-3 bg-slate-50 border rounded-xl">
-                      <button onClick={() => handleSeek(note.timestamp)} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-md">{formatTime(note.timestamp)}</button>
-                      <span className="flex-1 text-sm">{note.text}</span>
-                      <button onClick={() => saveNotes(notes.filter(n => n.id !== note.id))} className="text-slate-300 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                    <div key={note.id} className="flex items-center gap-3 p-3 bg-slate-50 border rounded-xl hover:shadow-sm transition-all group">
+                      <button onClick={() => handleSeek(note.timestamp)} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-md hover:bg-blue-200 transition-colors">{formatTime(note.timestamp)}</button>
+                      <span className="flex-1 text-sm text-slate-700">{note.text}</span>
+                      <button onClick={() => saveNotes(notes.filter(n => n.id !== note.id))} className="text-slate-300 hover:text-red-500 p-1 rounded-md transition-colors"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   ))}
                 </div>
               </div>
-              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 text-sm leading-relaxed whitespace-pre-wrap">{podcastScript}</div>
+              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 text-sm leading-relaxed whitespace-pre-wrap text-slate-600">{podcastScript}</div>
             </div>
           </div>
         )}
 
         {/* Modal */}
         {isModalOpen && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl animate-in zoom-in-95">
               <h3 className="text-xl font-bold mb-2">Add Study Note</h3>
               <p className="text-sm text-slate-500 mb-4">Time: {formatTime(pendingNoteTime)}</p>
               <input 
                 autoFocus value={noteText} onChange={e => setNoteText(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && confirmAddNote()}
                 placeholder="Important point about..."
-                className="w-full px-4 py-3 border rounded-xl mb-6 outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 border rounded-xl mb-6 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
               />
               <div className="flex justify-end gap-3">
-                <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 font-semibold">Cancel</button>
-                <button onClick={confirmAddNote} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg">Save</button>
+                <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 font-semibold hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
+                <button onClick={confirmAddNote} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg shadow-md hover:bg-blue-700 transition-all">Save Note</button>
               </div>
             </div>
           </div>
