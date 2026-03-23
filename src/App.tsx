@@ -56,9 +56,9 @@ interface HistoryItem {
   data: any;
 }
 
-// --- Constants ---
-const TEXT_ENGINE = "gemini-1.5-flash-latest";
-const AUDIO_ENGINE = "gemini-1.5-flash-latest";
+// --- Constants (UPDATED FOR COMPATIBILITY) ---
+const TEXT_ENGINE = "gemini-1.5-flash-preview-0514";
+const AUDIO_ENGINE = "gemini-1.5-flash-preview-0514";
 
 export default function App() {
   // --- State ---
@@ -99,11 +99,8 @@ export default function App() {
   useEffect(() => {
     if (file) {
       const savedNotes = localStorage.getItem(`notes_${file.name}`);
-      if (savedNotes) {
-        setNotes(JSON.parse(savedNotes));
-      } else {
-        setNotes([]);
-      }
+      if (savedNotes) setNotes(JSON.parse(savedNotes));
+      else setNotes([]);
     }
   }, [file]);
 
@@ -111,11 +108,7 @@ export default function App() {
   const saveHistory = (item: HistoryItem) => {
     const newHistory = [item, ...history].slice(0, 10);
     setHistory(newHistory);
-    try {
-      localStorage.setItem('studyHistory', JSON.stringify(newHistory));
-    } catch (e) {
-      console.warn('History save failed:', e);
-    }
+    localStorage.setItem('studyHistory', JSON.stringify(newHistory));
   };
 
   const saveNotes = (newNotes: StudyNote[]) => {
@@ -143,18 +136,14 @@ export default function App() {
   const createPlayableAudioUrl = (base64Data: string) => {
     const byteString = atob(base64Data);
     const byteArray = new Uint8Array(byteString.length);
-    for (let i = 0; i < byteString.length; i++) {
-      byteArray[i] = byteString.charCodeAt(i);
-    }
+    for (let i = 0; i < byteString.length; i++) byteArray[i] = byteString.charCodeAt(i);
 
     const sampleRate = 24000; 
     const buffer = new ArrayBuffer(44 + byteArray.length);
     const view = new DataView(buffer);
 
     const writeString = (offset: number, string: string) => {
-      for (let i = 0; i < string.length; i++) {
-        view.setUint8(offset + i, string.charCodeAt(i));
-      }
+      for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
     };
 
     writeString(0, 'RIFF');
@@ -186,7 +175,7 @@ export default function App() {
 
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error("API Key not found in environment");
+      if (!apiKey) throw new Error("API Key missing");
 
       const ai = new GoogleGenAI({ apiKey });
       const base64 = await fileToBase64(file);
@@ -196,7 +185,7 @@ export default function App() {
         model: TEXT_ENGINE,
         contents: [
           { inlineData: { data: base64, mimeType: "application/pdf" } },
-          { text: `Create a multiple-choice quiz in ${language} from this PDF. Return ONLY JSON: {"quiz_title": "String", "questions": [{"question_text": "String", "options": {"A": "String", "B": "String", "C": "String", "D": "String"}, "correct_answer": "A|B|C|D", "explanation": "String"}]}. Generate exactly ${numQuestions} questions.` }
+          { text: `Generate a JSON quiz from this PDF in ${language}: {"quiz_title": "string", "questions": [{"question_text": "string", "options": {"A": "string", "B": "string", "C": "string", "D": "string"}, "correct_answer": "A|B|C|D", "explanation": "string"}]}. Return EXACTLY ${numQuestions} questions.` }
         ],
         config: { responseMimeType: "application/json" }
       });
@@ -206,7 +195,7 @@ export default function App() {
       saveHistory({ id: Date.now().toString(), filename: file.name, type: 'quiz', date: new Date().toLocaleString(), data });
       setStatus('✅ Quiz Ready');
     } catch (error: any) {
-      setStatus(`❌ Error: ${error.message || 'Failed to fetch'}`);
+      setStatus(`❌ Error: ${error.message}`);
     } finally {
       setIsQuizLoading(false);
       setStep(0);
@@ -221,7 +210,7 @@ export default function App() {
 
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error("API Key not found in environment");
+      if (!apiKey) throw new Error("API Key missing");
 
       const ai = new GoogleGenAI({ apiKey });
       const base64 = await fileToBase64(file);
@@ -231,7 +220,7 @@ export default function App() {
         model: TEXT_ENGINE,
         contents: [
           { inlineData: { data: base64, mimeType: "application/pdf" } },
-          { text: `You are an expert podcast host. Summarize this PDF into a conversational script in ${language}. Target length: ${podcastDuration * 120} words. Return ONLY spoken text.` }
+          { text: `Summarize this PDF as a conversational script in ${language}. Target word count: ${podcastDuration * 120}. ONLY return spoken text.` }
         ]
       });
 
@@ -258,7 +247,7 @@ export default function App() {
         setStatus('✅ Podcast Ready');
       }
     } catch (error: any) {
-      setStatus(`❌ Error: ${error.message || 'Failed to fetch'}`);
+      setStatus(`❌ Error: ${error.message}`);
     } finally {
       setIsPodcastLoading(false);
       setStep(0);
@@ -320,6 +309,28 @@ export default function App() {
                 <option value="English">English</option>
                 <option value="Hindi">Hindi</option>
               </select>
+            </div>
+          </div>
+
+          {/* RESTORED SLIDERS */}
+          <div className="grid grid-cols-2 gap-6 mb-8">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700">Questions</label>
+              <input 
+                type="number" min="1" max="20" 
+                value={numQuestions}
+                onChange={(e) => setNumQuestions(parseInt(e.target.value) || 5)}
+                className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700">Podcast (Mins)</label>
+              <input 
+                type="number" min="2" max="10" 
+                value={podcastDuration}
+                onChange={(e) => setPodcastDuration(parseInt(e.target.value) || 3)}
+                className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none"
+              />
             </div>
           </div>
 
