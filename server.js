@@ -21,7 +21,7 @@ app.post('/api/ai', async (req, res) => {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // Original Vision: Audio uses 2.0, Text uses 1.5
+    // Audio Generation
     if (type === 'audio') {
       const audioModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }, { apiVersion: "v1alpha" });
       const result = await audioModel.generateContent({
@@ -34,7 +34,8 @@ app.post('/api/ai', async (req, res) => {
       return res.json({ audioData: result.response.candidates[0].content.parts[0].inlineData.data });
     }
 
-    const textModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    // Text Generation (Quiz & Script) - FIX: Pointed to the active 2.0 model
+    const textModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
     const contents = [
       { inlineData: { data: fileData, mimeType: "application/pdf" } },
       { text: prompt }
