@@ -30,18 +30,18 @@ app.post('/api/ai', async (req, res) => {
     console.log("3. 🧠 Initializing Gemini Models...");
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // Use 2.5 for text/reading, use 2.0 specifically for Audio generation
+    // Use 2.5 for text/reading, use 2.0-exp specifically for Audio generation
     const textModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const audioModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const audioModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
 
     // Handle Podcast Audio Generation
     if (type === 'audio') {
-      console.log("4. 🎙️ Generating Podcast Audio using gemini-2.0-flash...");
+      console.log("4. 🎙️ Generating Podcast Audio using gemini-2.0-flash-exp...");
       const result = await audioModel.generateContent({
         contents: [{ parts: [{ text: prompt.slice(0, 10000) }] }],
         generationConfig: {
           responseModalities: ["AUDIO"],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } } }
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } } }
         }
       });
       const audioData = result.response.candidates[0].content.parts[0].inlineData.data;
