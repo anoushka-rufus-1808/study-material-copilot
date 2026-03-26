@@ -5,13 +5,14 @@ import { twMerge } from 'tailwind-merge';
 
 function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)); }
 
+// --- UPGRADED SKELETON COMPONENT ---
 const Skeleton = ({ className }: { className?: string }) => (
   <div className={cn("animate-pulse bg-slate-200 rounded-xl", className)} />
 );
 
 export default function App() {
   const [file, setFile] = useState<File | null>(null);
-  const [currentFilename, setCurrentFilename] = useState<string>(''); // Tracking name for notes
+  const [currentFilename, setCurrentFilename] = useState<string>(''); 
   const [language, setLanguage] = useState('English');
   const [numQuestions, setNumQuestions] = useState(5);
   const [podcastDuration, setPodcastDuration] = useState(3);
@@ -31,15 +32,13 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [noteText, setNoteText] = useState('');
 
-  // Initialization
   useEffect(() => {
     const saved = localStorage.getItem('studyHistory');
     if (saved) setHistory(JSON.parse(saved));
-    window.speechSynthesis.getVoices(); // Force load voices
+    window.speechSynthesis.getVoices(); 
     return () => { window.speechSynthesis.cancel(); };
   }, []);
 
-  // Sync notes whenever the filename changes (new upload or history click)
   useEffect(() => {
     if (currentFilename) {
       const savedNotes = localStorage.getItem(`notes_${currentFilename}`);
@@ -72,7 +71,7 @@ export default function App() {
     window.speechSynthesis.cancel();
     setIsPlaying(false);
     setStatus('');
-    setCurrentFilename(item.filename); // This triggers the useEffect to load correct notes
+    setCurrentFilename(item.filename); 
 
     if (item.type === 'quiz') {
       setQuizData(item.data);
@@ -98,7 +97,6 @@ export default function App() {
       const voices = synth.getVoices();
       if (language === 'Hindi') {
         utterance.lang = 'hi-IN';
-        // Extreme targeting for Hindi voices
         const hindiVoice = voices.find(v => v.lang.startsWith('hi') || v.name.toLowerCase().includes('hindi') || v.name.toLowerCase().includes('google हिन्दी'));
         if (hindiVoice) utterance.voice = hindiVoice;
       } else {
@@ -125,7 +123,10 @@ export default function App() {
         const res = await fetch('/api/ai', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileData: base64, prompt: `Return ONLY a JSON quiz in ${language}: {"quiz_title": "string", "questions": [{"question_text": "string", "options": {"A": "string", "B": "string", "C": "string", "D": "string"}, "correct_answer": "A|B|C|D", "explanation": "string"}]}.` })
+          body: JSON.stringify({ 
+            fileData: base64, 
+            prompt: `Return ONLY a JSON quiz in ${language}: {"quiz_title": "string", "questions": [{"question_text": "string", "options": {"A": "string", "B": "string", "C": "string", "D": "string"}, "correct_answer": "A|B|C|D", "explanation": "string"}]}. Generate exactly ${numQuestions} questions.` 
+          })
         });
         if (!res.ok) throw new Error();
         const data = await res.json();
@@ -148,7 +149,10 @@ export default function App() {
         const res = await fetch('/api/ai', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileData: base64, prompt: `Summarize this material in conversational plain text paragraphs in ${language}. No markdown.` })
+          body: JSON.stringify({ 
+            fileData: base64, 
+            prompt: `Summarize this material in conversational plain text paragraphs in ${language}. Target length: ${podcastDuration * 120} words. No markdown.` 
+          })
         });
         if (!res.ok) throw new Error();
         const data = await res.json();
@@ -167,17 +171,30 @@ export default function App() {
         </header>
 
         <div className="bg-white rounded-[2rem] shadow-2xl shadow-slate-200 border border-slate-100 p-8 transition-all">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+          
+          {/* RESTORED CONTROLS GRID */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
             <div className="space-y-3">
-              <label className="text-sm font-black text-slate-700 uppercase tracking-wider">Step 1: Upload Study PDF</label>
+              <label className="text-sm font-black text-slate-700 uppercase tracking-wider flex items-center gap-2"><FileText size={16}/> Upload Study PDF</label>
               <input type="file" accept="application/pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} className="w-full border-2 border-dashed border-slate-200 p-4 rounded-2xl hover:border-blue-400 transition-colors bg-slate-50 cursor-pointer" />
             </div>
             <div className="space-y-3">
-              <label className="text-sm font-black text-slate-700 uppercase tracking-wider">Step 2: Voice Language</label>
+              <label className="text-sm font-black text-slate-700 uppercase tracking-wider flex items-center gap-2"><Volume2 size={16}/> Voice Language</label>
               <select value={language} onChange={(e) => setLanguage(e.target.value)} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-bold bg-white focus:border-blue-500 outline-none appearance-none cursor-pointer">
                 <option value="English">English</option>
                 <option value="Hindi">Hindi</option>
               </select>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-8 mb-8">
+            <div className="space-y-3">
+              <label className="text-sm font-black text-slate-700 uppercase tracking-wider">Questions</label>
+              <input type="number" value={numQuestions} onChange={(e) => setNumQuestions(parseInt(e.target.value))} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-bold bg-white focus:border-blue-500 outline-none" min="1" max="20" />
+            </div>
+            <div className="space-y-3">
+              <label className="text-sm font-black text-slate-700 uppercase tracking-wider">Podcast (Mins)</label>
+              <input type="number" value={podcastDuration} onChange={(e) => setPodcastDuration(parseInt(e.target.value))} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-bold bg-white focus:border-blue-500 outline-none" min="1" max="15" />
             </div>
           </div>
 
@@ -192,11 +209,22 @@ export default function App() {
           {status && <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-amber-800 font-bold"><AlertCircle size={20}/> {status}</div>}
         </div>
 
-        {/* LOADING SKELETONS */}
+        {/* HIGH VISIBILITY SKELETON LOADING CARD */}
         {(isQuizLoading || isPodcastLoading) && (
-          <div className="space-y-6">
-            <Skeleton className="h-12 w-3/4" />
-            <div className="grid gap-4"><Skeleton className="h-40" /><Skeleton className="h-40" /></div>
+          <div className="bg-white p-8 rounded-[2rem] border shadow-2xl space-y-8 animate-in fade-in duration-300">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-10 w-1/3" />
+              <Skeleton className="h-12 w-32 rounded-2xl" />
+            </div>
+            <div className="space-y-4">
+               <Skeleton className="h-6 w-full" />
+               <Skeleton className="h-6 w-5/6" />
+               <Skeleton className="h-6 w-4/6" />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
+               <Skeleton className="h-24 w-full" />
+               <Skeleton className="h-24 w-full" />
+            </div>
           </div>
         )}
 
@@ -223,10 +251,19 @@ export default function App() {
 
           {podcastScript && (
             <div className="bg-white p-8 rounded-[2rem] border shadow-2xl space-y-8 animate-in zoom-in-95 duration-500">
-              <div className="flex items-center justify-between"><h2 className="text-2xl font-black flex items-center gap-3"><Mic className="text-blue-600" size={30}/> AI Learning Podcast</h2><button onClick={toggleAudio} className={cn("px-10 py-4 rounded-2xl font-black text-white transition-all shadow-xl", isPlaying ? "bg-amber-500" : "bg-emerald-600")}>{isPlaying ? "PAUSE" : "PLAY AUDIO"}</button></div>
-              <div className="space-y-4 bg-slate-900 p-8 rounded-3xl text-slate-300 font-medium italic text-lg shadow-inner">"{podcastScript}"</div>
-              <div className="pt-6 border-t border-slate-100">
-                <div className="flex justify-between items-center mb-4"><h3 className="font-black text-slate-700 uppercase text-xs tracking-widest flex items-center gap-2"><Clock size={16} className="text-blue-500"/> Personal Notes</h3><button onClick={() => setIsModalOpen(true)} className="bg-blue-50 text-blue-600 p-2 rounded-full hover:bg-blue-100 transition-colors"><Plus size={20}/></button></div>
+              
+              {/* HEADER WITH PLAY BUTTON */}
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-black flex items-center gap-3"><Mic className="text-blue-600" size={30}/> AI Learning Podcast</h2>
+                <button onClick={toggleAudio} className={cn("px-10 py-4 rounded-2xl font-black text-white transition-all shadow-xl", isPlaying ? "bg-amber-500" : "bg-emerald-600")}>{isPlaying ? "PAUSE" : "PLAY AUDIO"}</button>
+              </div>
+
+              {/* RELOCATED NOTES SECTION (Now directly under audio controls) */}
+              <div className="pb-6 border-b border-slate-100">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-black text-slate-700 uppercase text-xs tracking-widest flex items-center gap-2"><Clock size={16} className="text-blue-500"/> Personal Notes</h3>
+                  <button onClick={() => setIsModalOpen(true)} className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl font-bold hover:bg-blue-100 transition-colors flex items-center gap-2"><Plus size={16}/> Add Note</button>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {notes.map(n => (
                     <div key={n.id} className="bg-slate-50 p-4 rounded-xl flex justify-between items-start group border border-slate-100 hover:border-blue-200 transition-all">
@@ -234,8 +271,12 @@ export default function App() {
                       <button onClick={() => deleteNote(n.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16}/></button>
                     </div>
                   ))}
+                  {notes.length === 0 && <div className="col-span-full text-center p-4 border-2 border-dashed border-slate-100 rounded-xl text-slate-400 text-sm font-bold">No notes for this session yet.</div>}
                 </div>
               </div>
+              
+              {/* SCRIPT AREA (Now at the bottom) */}
+              <div className="space-y-4 bg-slate-900 p-8 rounded-3xl text-slate-300 font-medium italic text-lg shadow-inner leading-relaxed">"{podcastScript}"</div>
             </div>
           )}
         </div>
