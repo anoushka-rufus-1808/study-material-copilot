@@ -132,55 +132,72 @@ export default function App() {
     }
   };
 
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve((reader.result as string).split(',')[1]);
+      reader.onerror = reject;
+    });
+  };
+
+  // --- FIX: Logic re-synced to await the AI process properly ---
   const handleGenerateQuiz = async () => {
     if (!file) return;
     setCurrentFilename(file.name);
     setIsQuizLoading(true); setStatus(''); setQuizData(null); setPodcastScript(null);
+    
     try {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = async () => {
-        const base64 = (reader.result as string).split(',')[1];
-        const res = await fetch('/api/ai', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            fileData: base64, 
-            prompt: `Return ONLY a JSON quiz in ${language}: {"quiz_title": "string", "questions": [{"question_text": "string", "options": {"A": "string", "B": "string", "C": "string", "D": "string"}, "correct_answer": "A|B|C|D", "explanation": "string"}]}. Generate exactly ${numQuestions} questions.` 
-          })
-        });
-        if (!res.ok) throw new Error();
-        const data = await res.json();
-        const parsedData = JSON.parse(data.text.replace(/```json|```/g, "").trim());
-        setQuizData(parsedData); setQuizAnswers({}); setQuizSubmitted(false);
-        saveHistory({ id: Date.now().toString(), filename: file.name, type: 'quiz', date: new Date().toLocaleString(), data: parsedData });
-      };
-    } catch (e) { setStatus('Service busy. Please try again in a moment.'); } finally { setIsQuizLoading(false); }
+      const base64 = await fileToBase64(file);
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          fileData: base64, 
+          prompt: `Return ONLY a JSON quiz in ${language}: {"quiz_title": "string", "questions": [{"question_text": "string", "options": {"A": "string", "B": "string", "C": "string", "D": "string"}, "correct_answer": "A|B|C|D", "explanation": "string"}]}. Generate exactly ${numQuestions} questions.` 
+        })
+      });
+      
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const parsedData = JSON.parse(data.text.replace(/```json|```/g, "").trim());
+      
+      setQuizData(parsedData); setQuizAnswers({}); setQuizSubmitted(false);
+      saveHistory({ id: Date.now().toString(), filename: file.name, type: 'quiz', date: new Date().toLocaleString(), data: parsedData });
+    } catch (e) { 
+      setStatus('Service busy. Please try again in a moment.'); 
+    } finally { 
+      setIsQuizLoading(false); 
+    }
   };
 
+  // --- FIX: Logic re-synced to await the AI process properly ---
   const handleGeneratePodcast = async () => {
     if (!file) return;
     setCurrentFilename(file.name);
     setIsPodcastLoading(true); setStatus(''); setQuizData(null); setPodcastScript(null);
+    
     try {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = async () => {
-        const base64 = (reader.result as string).split(',')[1];
-        const res = await fetch('/api/ai', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            fileData: base64, 
-            prompt: `Summarize this material in conversational plain text paragraphs in ${language}. Target length: ${podcastDuration * 120} words. No markdown.` 
-          })
-        });
-        if (!res.ok) throw new Error();
-        const data = await res.json();
-        setPodcastScript(data.text);
-        saveHistory({ id: Date.now().toString(), filename: file.name, type: 'podcast', date: new Date().toLocaleString(), data: { script: data.text } });
-      };
-    } catch (e) { setStatus('Generation limit reached. Please try again shortly.'); } finally { setIsPodcastLoading(false); }
+      const base64 = await fileToBase64(file);
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          fileData: base64, 
+          prompt: `Summarize this material in conversational plain text paragraphs in ${language}. Target length: ${podcastDuration * 120} words. No markdown.` 
+        })
+      });
+      
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      
+      setPodcastScript(data.text);
+      saveHistory({ id: Date.now().toString(), filename: file.name, type: 'podcast', date: new Date().toLocaleString(), data: { script: data.text } });
+    } catch (e) { 
+      setStatus('Generation limit reached. Please try again shortly.'); 
+    } finally { 
+      setIsPodcastLoading(false); 
+    }
   };
 
   return (
@@ -261,7 +278,7 @@ export default function App() {
 
         {/* CONTENT AREA */}
         <div className="space-y-10">
-          {quizData && (
+          {quizData && !isQuizLoading && !isPodcastLoading && (
             <div className="bg-white p-8 md:p-12 rounded-[2.5rem] border border-slate-100 shadow-2xl shadow-slate-200/50 animate-in slide-in-from-bottom-8 duration-700">
               <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-6 mb-10 pb-8 border-b-2 border-slate-50">
                 <h2 className="text-3xl font-black text-slate-900 leading-tight">{quizData.quiz_title}</h2>
@@ -294,7 +311,7 @@ export default function App() {
             </div>
           )}
 
-          {podcastScript && (
+          {podcastScript && !isQuizLoading && !isPodcastLoading && (
             <div className="bg-white p-8 md:p-12 rounded-[2.5rem] border border-slate-100 shadow-2xl shadow-slate-200/50 space-y-10 animate-in slide-in-from-bottom-8 duration-700">
               
               {/* HEADER WITH PLAY BUTTON */}
