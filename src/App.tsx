@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Mic, BookOpen, Trash2, Clock, History, ChevronRight, Loader2, Volume2, AlertCircle, Plus, Sparkles, Download } from 'lucide-react';
+import { FileText, Mic, BookOpen, Trash2, Clock, History, ChevronRight, Loader2, Volume2, AlertCircle, Plus, Sparkles, Download, User, Lock, LogOut, Lightbulb } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)); }
 
-// --- PREMIUM ANIMATED SKELETON LOADER ---
 const PremiumLoader = ({ type }: { type: 'quiz' | 'podcast' }) => (
-  <div className="bg-white p-10 rounded-[2rem] border border-blue-100 shadow-2xl shadow-blue-100/50 flex flex-col items-center justify-center space-y-6 animate-in zoom-in-95 duration-500">
+  <div className="bg-white p-10 rounded-[2rem] border border-blue-100 shadow-2xl flex flex-col items-center justify-center space-y-6 animate-in zoom-in-95 duration-500 my-8">
     <div className="relative flex items-center justify-center">
       <div className="absolute inset-0 bg-blue-200 rounded-full animate-ping opacity-50"></div>
       <div className="relative bg-gradient-to-br from-blue-600 to-indigo-600 text-white p-5 rounded-full shadow-lg shadow-blue-500/50">
@@ -32,6 +31,14 @@ const PremiumLoader = ({ type }: { type: 'quiz' | 'podcast' }) => (
 );
 
 export default function App() {
+  // --- AUTH STATES ---
+  const [user, setUser] = useState<{email: string, userId: string} | null>(null);
+  const [isLoginView, setIsLoginView] = useState(true);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPass, setAuthPass] = useState('');
+  const [recommendations, setRecommendations] = useState<string[]>([]);
+
+  // --- APP STATES ---
   const [file, setFile] = useState<File | null>(null);
   const [currentFilename, setCurrentFilename] = useState<string>(''); 
   const [language, setLanguage] = useState('English');
@@ -47,16 +54,23 @@ export default function App() {
   
   const [podcastScript, setPodcastScript] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false); 
-  const [playbackSpeed, setPlaybackSpeed] = useState<number>(0.9); // EXTRA: Audio Speed State
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(0.9);
   const [notes, setNotes] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [noteText, setNoteText] = useState('');
 
+  // Initialization & Auth Check
   useEffect(() => {
-    const saved = localStorage.getItem('studyHistory');
-    if (saved) setHistory(JSON.parse(saved));
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+        const parsed = JSON.parse(savedUser);
+        setUser(parsed);
+        setRecommendations(parsed.recommendations || []);
+    }
+    const savedHistory = localStorage.getItem('studyHistory');
+    if (savedHistory) setHistory(JSON.parse(savedHistory));
     window.speechSynthesis.getVoices(); 
     return () => { window.speechSynthesis.cancel(); };
   }, []);
@@ -68,6 +82,38 @@ export default function App() {
     }
   }, [currentFilename]);
 
+  // --- AUTH LOGIC ---
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const endpoint = isLoginView ? '/api/auth/login' : '/api/auth/signup';
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: authEmail, password: authPass })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Authentication failed");
+
+      if (isLoginView) {
+        const userObj = { email: data.email, userId: data.token, recommendations: data.recommendations };
+        setUser(userObj);
+        setRecommendations(data.recommendations || []);
+        localStorage.setItem('user', JSON.stringify(userObj));
+      } else {
+        alert("Account created! Please login.");
+        setIsLoginView(true);
+      }
+    } catch (err: any) { setStatus(err.message); }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    setUser(null);
+    window.location.reload();
+  };
+
+  // --- APP LOGIC ---
   const saveHistory = (item: any) => {
     const newHistory = [item, ...history].slice(0, 10);
     setHistory(newHistory);
@@ -89,7 +135,6 @@ export default function App() {
     localStorage.setItem(`notes_${currentFilename}`, JSON.stringify(newNotes));
   };
 
-  // --- EXTRA: Export Notes Function (Zero API usage, pure browser blob) ---
   const exportNotes = () => {
     if (notes.length === 0) return;
     const noteContent = notes.map((n, i) => `${i + 1}. ${n.text}`).join('\n\n');
@@ -138,7 +183,7 @@ export default function App() {
         utterance.lang = 'en-US';
       }
       
-      utterance.rate = playbackSpeed; // EXTRA: Applies the user's selected speed
+      utterance.rate = playbackSpeed;
       utterance.onstart = () => setIsPlaying(true);
       utterance.onend = () => setIsPlaying(false);
       utterance.onerror = () => { setIsPlaying(false); synth.cancel(); };
@@ -159,6 +204,7 @@ export default function App() {
     if (!file) return;
     setCurrentFilename(file.name);
     setIsQuizLoading(true); setStatus(''); setQuizData(null); setPodcastScript(null);
+    window.speechSynthesis.cancel(); setIsPlaying(false);
     
     try {
       const base64 = await fileToBase64(file);
@@ -167,6 +213,8 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           fileData: base64, 
+          userId: user?.userId, 
+          filename: file.name,
           prompt: `Return ONLY a JSON quiz in ${language}: {"quiz_title": "string", "questions": [{"question_text": "string", "options": {"A": "string", "B": "string", "C": "string", "D": "string"}, "correct_answer": "A|B|C|D", "explanation": "string"}]}. Generate exactly ${numQuestions} questions.` 
         })
       });
@@ -176,6 +224,7 @@ export default function App() {
       const parsedData = JSON.parse(data.text.replace(/```json|```/g, "").trim());
       
       setQuizData(parsedData); setQuizAnswers({}); setQuizSubmitted(false);
+      if (data.recommendations && data.recommendations.length > 0) setRecommendations(data.recommendations);
       saveHistory({ id: Date.now().toString(), filename: file.name, type: 'quiz', date: new Date().toLocaleString(), data: parsedData });
     } catch (e) { 
       setStatus('Service busy. Please try again in a moment.'); 
@@ -188,6 +237,7 @@ export default function App() {
     if (!file) return;
     setCurrentFilename(file.name);
     setIsPodcastLoading(true); setStatus(''); setQuizData(null); setPodcastScript(null);
+    window.speechSynthesis.cancel(); setIsPlaying(false);
     
     try {
       const base64 = await fileToBase64(file);
@@ -196,6 +246,8 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           fileData: base64, 
+          userId: user?.userId, 
+          filename: file.name,
           prompt: `Summarize this material in conversational plain text paragraphs in ${language}. Target length: ${podcastDuration * 120} words. No markdown.` 
         })
       });
@@ -204,6 +256,7 @@ export default function App() {
       const data = await res.json();
       
       setPodcastScript(data.text);
+      if (data.recommendations && data.recommendations.length > 0) setRecommendations(data.recommendations);
       saveHistory({ id: Date.now().toString(), filename: file.name, type: 'podcast', date: new Date().toLocaleString(), data: { script: data.text } });
     } catch (e) { 
       setStatus('Generation limit reached. Please try again shortly.'); 
@@ -212,26 +265,73 @@ export default function App() {
     }
   };
 
-  // --- EXTRA: Calculate estimated reading time ---
   const estimatedMinutes = podcastScript ? Math.max(1, Math.ceil(podcastScript.split(/\s+/).length / 130)) : 0;
 
+  // --- LOGIN VIEW ---
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 selection:bg-indigo-200">
+        <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-slate-100 animate-in zoom-in-95 duration-500">
+          <div className="text-center mb-8">
+            <h1 className="text-5xl font-black text-slate-900 mb-2">EduStream <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">AI</span></h1>
+            <p className="text-slate-500 font-bold">{isLoginView ? 'Welcome Back to your Hub' : 'Create Your Account'}</p>
+          </div>
+          <form onSubmit={handleAuth} className="space-y-5">
+            <div className="relative group">
+              <User className="absolute left-4 top-4 text-slate-400 group-focus-within:text-blue-600 transition-colors" size={22}/>
+              <input required type="email" placeholder="Email Address" value={authEmail} onChange={e => setAuthEmail(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none font-bold transition-all text-slate-700 hover:border-blue-200" />
+            </div>
+            <div className="relative group">
+              <Lock className="absolute left-4 top-4 text-slate-400 group-focus-within:text-blue-600 transition-colors" size={22}/>
+              <input required type="password" placeholder="Password" value={authPass} onChange={e => setAuthPass(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none font-bold transition-all text-slate-700 hover:border-blue-200" />
+            </div>
+            <button className="w-full py-5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black text-lg rounded-2xl shadow-xl shadow-indigo-200 hover:from-blue-700 hover:to-indigo-700 transition-all active:scale-95">
+              {isLoginView ? 'SECURE LOGIN' : 'CREATE ACCOUNT'}
+            </button>
+          </form>
+          <button onClick={() => setIsLoginView(!isLoginView)} className="w-full mt-6 text-sm font-bold text-slate-400 hover:text-blue-600 transition-colors">
+            {isLoginView ? "Don't have an account? Sign Up" : "Already have an account? Login"}
+          </button>
+          {status && <p className="mt-6 text-center text-red-500 text-sm font-bold bg-red-50 p-3 rounded-xl">{status}</p>}
+        </div>
+      </div>
+    );
+  }
+
+  // --- MAIN DASHBOARD VIEW ---
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 text-slate-900 font-sans selection:bg-indigo-200">
       <div className="max-w-4xl mx-auto space-y-10">
         
-        {/* ENHANCED HEADER */}
-        <header className="text-center py-6 animate-in fade-in slide-in-from-top-4 duration-700">
-          <h1 className="text-6xl font-black tracking-tight mb-2">
-            EduStream <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">AI</span>
-          </h1>
-          <p className="text-slate-500 font-bold text-lg flex items-center justify-center gap-2">
-            <Sparkles size={20} className="text-amber-400" />
-            Personalized Quizzes & Interactive Podcasts
-          </p>
+        {/* ENHANCED HEADER WITH LOGOUT */}
+        <header className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 animate-in slide-in-from-top-4 duration-500">
+          <div>
+            <h1 className="text-4xl font-black text-slate-900">EduStream <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">AI</span></h1>
+            <p className="text-slate-400 text-xs font-black uppercase tracking-widest mt-1 flex items-center gap-2"><User size={14}/> {user.email}</p>
+          </div>
+          <button onClick={handleLogout} className="flex items-center gap-2 px-5 py-3 bg-slate-50 text-slate-600 font-bold rounded-xl hover:bg-red-50 hover:text-red-600 transition-colors border border-slate-100"><LogOut size={18}/> Sign Out</button>
         </header>
 
+        {/* PERSONALIZATION SECTION */}
+        {recommendations.length > 0 && (
+          <div className="bg-gradient-to-br from-indigo-600 to-blue-700 p-8 rounded-[2.5rem] text-white shadow-xl animate-in fade-in slide-in-from-right-4 duration-700">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-white/20 p-2 rounded-lg"><Lightbulb size={24}/></div>
+              <h3 className="text-xl font-black">Personalized Next Steps</h3>
+            </div>
+            <p className="opacity-90 font-bold mb-6 text-sm">Based on your last study session, Gemini recommends exploring these related topics:</p>
+            <div className="flex flex-wrap gap-3">
+              {recommendations.filter(Boolean).map((rec, i) => (
+                <span key={i} className="bg-white/10 backdrop-blur-md px-5 py-2.5 rounded-xl font-bold text-sm border border-white/20 cursor-default">
+                  {rec.trim().replace(/^[-*]\s*/, '')} 
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* INTERACTIVE CONTROLS CARD */}
-        <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 p-8 md:p-10 transition-all duration-500 hover:shadow-2xl hover:-translate-y-1 hover:border-blue-100">
+        <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 p-8 md:p-10 transition-all duration-500 hover:shadow-2xl hover:border-blue-100">
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
             <div className="space-y-3 group">
@@ -337,7 +437,6 @@ export default function App() {
                 </h2>
                 
                 <div className="flex w-full lg:w-auto gap-3 items-center">
-                  {/* EXTRA: Speed Dropdown */}
                   <select 
                     value={playbackSpeed} 
                     onChange={(e) => {
@@ -366,7 +465,6 @@ export default function App() {
                 <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
                   <h3 className="font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Clock size={18}/> Session Notes</h3>
                   <div className="flex gap-3">
-                    {/* EXTRA: Export Notes Button */}
                     {notes.length > 0 && (
                       <button onClick={exportNotes} className="group bg-slate-100 text-slate-600 px-4 py-3 rounded-xl font-bold hover:bg-slate-200 hover:text-slate-800 transition-all duration-300 flex items-center gap-2 shadow-sm">
                         <Download size={18} className="group-hover:translate-y-0.5 transition-transform"/> EXPORT TXT
@@ -392,7 +490,6 @@ export default function App() {
               <div className="space-y-6">
                 <div className="flex justify-between items-end px-2">
                   <h3 className="font-black text-slate-400 uppercase tracking-widest">Generated Script</h3>
-                  {/* EXTRA: Estimated Time Badge */}
                   <div className="bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg text-xs font-black tracking-wider flex items-center gap-1.5 shadow-sm border border-indigo-100">
                     <Clock size={14} /> ~{estimatedMinutes} MIN LISTEN
                   </div>
