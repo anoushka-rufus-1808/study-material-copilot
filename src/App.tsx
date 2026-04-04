@@ -156,7 +156,9 @@ export default function App() {
     if (item.type === 'quiz') {
       setQuizData(item.data);
       setPodcastScript(null);
-      setQuizSubmitted(true);
+      // BUG FIX: Ensure past quizzes load fresh so the user can retake them!
+      setQuizAnswers({});
+      setQuizSubmitted(false);
     } else {
       setPodcastScript(item.data.script);
       setQuizData(null);
@@ -418,9 +420,16 @@ export default function App() {
                   </div>
                 ))}
               </div>
+              
+              {/* BUTTON AREA WITH RETRY ADDED */}
               {!quizSubmitted && (
                 <button onClick={() => setQuizSubmitted(true)} className="w-full py-6 mt-12 bg-slate-900 text-white font-black text-2xl tracking-wide rounded-[2rem] shadow-2xl shadow-slate-900/30 hover:bg-slate-800 hover:-translate-y-1 transition-all duration-300 active:scale-[0.98]">
                   SUBMIT RESULTS
+                </button>
+              )}
+              {quizSubmitted && (
+                <button onClick={() => { setQuizSubmitted(false); setQuizAnswers({}); }} className="w-full py-6 mt-12 bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-black text-2xl tracking-wide rounded-[2rem] shadow-2xl shadow-blue-900/30 hover:from-blue-600 hover:to-indigo-600 hover:-translate-y-1 transition-all duration-300 active:scale-[0.98]">
+                  RETRY QUIZ
                 </button>
               )}
             </div>
