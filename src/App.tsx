@@ -321,7 +321,7 @@ export default function App() {
               <div className="bg-white/20 p-2 rounded-lg"><Lightbulb size={24}/></div>
               <h3 className="text-xl font-black">Personalized Next Steps</h3>
             </div>
-            <p className="opacity-90 font-bold mb-6 text-sm">Based on your last study session, Gemini recommends exploring these related topics:</p>
+            <p className="opacity-90 font-bold mb-6 text-sm">Based on your last study session, EduStream recommends exploring these related topics:</p>
             <div className="flex flex-wrap gap-3">
               {recommendations.filter(Boolean).map((rec, i) => (
                 <span key={i} className="bg-white/10 backdrop-blur-md px-5 py-2.5 rounded-xl font-bold text-sm border border-white/20 cursor-default">
