@@ -59,4 +59,3 @@
 * **Intelligent PDF Caching:** Implement a caching layer (like Redis). If a user uploads a previously analyzed PDF, the backend will instantly pull the parsed text from the cache instead of running the expensive parsing operation again, saving compute resources and API quota.
 * **Quality Assurance Feedback Loop:** Add a simple "Thumbs Up / Thumbs Down" mechanism on the generated quizzes and podcasts. Gathering this user telemetry is critical for tweaking the AI prompts and ensuring the model doesn't hallucinate.
 * **Performance Telemetry in UI:** Display the API turnaround time to the user (e.g., *⚡ Generated in 1.8 seconds*). Surfacing this metric highlights the architectural decision to use high-speed inference models like Groq over slower alternatives.
-```
